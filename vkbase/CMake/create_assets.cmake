@@ -33,6 +33,11 @@ function(add_dir PATH ROOT)
 			foreach(i RANGE 0 ${ASSET_CONTENTS_LENGTH} 2)
 				string(SUBSTRING ${ASSET_CONTENTS} ${i} 2 ASSET_CONTENTS_SUBSTRING)
 				file(APPEND ${DST_FILE} "\\x${ASSET_CONTENTS_SUBSTRING}")
+#				add "\n" every 1024 bytes
+				math(EXPR MOD "${i} % 1024")
+				if(MOD EQUAL 0)
+					file(APPEND ${DST_FILE} "\"\n\"")
+				endif()
 			endforeach()
 			#end asset write
 			file(APPEND ${DST_FILE} "\",${BYTES_COUNT})},\n")

@@ -69,7 +69,7 @@ endif()
 #if WINDOWS
 
 if(WIN32)
-	add_custom_command(OUTPUT assets.cpp
+	add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/assets.cpp
 			COMMAND ${CMAKE_COMMAND}
 			"-DASSETS=${ASSETS}"
 			-DDST_FILE=${CMAKE_CURRENT_BINARY_DIR}/assets.cpp

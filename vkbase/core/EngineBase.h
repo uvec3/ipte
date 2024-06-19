@@ -96,8 +96,6 @@ namespace vkbase
         virtual void onSurfaceChanged()=0;
     };
 
-
-
     enum class MessageType
     {
         Error,
@@ -106,7 +104,6 @@ namespace vkbase
     };
 
     extern std::map<std::string, std::string> assets;
-
     extern VkInstance instance;
     extern VkDevice device;
     extern VkPhysicalDevice physicalDevice;
@@ -117,150 +114,27 @@ namespace vkbase
     extern VkCommandPool commandPoolReset;
     extern std::vector<VkFramebuffer> swapChainFramebuffers;
     extern VkExtent2D extent;
+    extern double lastFrameTime;
     //tmp
     extern VkRenderPass renderPass;
     extern std::vector<VkCommandBuffer> cbMain;
-//    extern VkCommandPool commandPool;
-
-    //to params
     extern uint32_t imageCount;
 
+
     void addDeviseExtension(const char* extension);
-
-    //constructor
-    int init();
-
-    //destructor
+    int init(const std::string &appName);
     int destroy();
-
-    //check swapchain, process all changes, update all data, rendering and presentation
-    void drawFrame();
-
+    void drawFrame();    //check swapchain, process all changes, update all data, rendering and presentation
     bool handleEvents();
-
     void waitForRenderEnd(uint64_t timeout= UINT64_MAX);
-
-//VIRTUAL METHODS
-    //called in idle time between frames(it can be used for heavy computations)
-    void drawPrepare();
-    //
-    void handleTouch(sys::TouchEvent &touchEvent);
-
-//INTERNAL METHODS
-    //describe the render pass
-    void createRenderPass();
-
-    //SETUP VULKAN DEVICES
-    //create instance
-    void createInstance();
-
-    //find a suitable physical device
-    void pickPhysicalDevice();
-
-    //check if physical device supports all requirements
-    bool isDeviseSuitable(VkPhysicalDevice &physDevise);
-
-    //check if physical device supports all required extensions
-    bool checkDeviceExtensionSupport(VkPhysicalDevice device);
-
-    //create logical device
-    void createLogicalDevice();
-
-    //find necessary queue families for selected device
-    inline QueueFamilyIndices findQueueFamilies(VkPhysicalDevice physDevice);
-
-    //find memory type
-    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties,
-                            VkMemoryHeapFlags heapFlags);
-
-    //SWAP CHAIN
-    void createSwapChain();
-
-    void recreateSwapChain();
-
-    void cleanupSwapChain();
-
-    //create image views for each image in the swapchain
-    void createImageViews();
-
-    //query swapchain support details
-    SwapChainSupportDetails querySwapChainDetails(VkPhysicalDevice physDevice);
-
-    //choose swapchain surface format
-    static VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats);
-
-    //choose swapchain present mode
-    static VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes);
-
-    //choose extent
-    VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities);
-
-    //choose composite alpha
-    static VkCompositeAlphaFlagBitsKHR chooseSwapChainCompositeAlpha(VkCompositeAlphaFlagsKHR availableAlpha);
-
-    //create framebuffers for each image in the swapchain
-    void createFrameBuffers();
-
-    //COMMAND POOLS
-    //create command pool
-//    void createCommandPool();
-
-    //create command pool with support for buffer overwriting without the need to flush the entire pool
-    void createCommandPoolReset();
-
-
-    void createMainCommandBuffers();
-
-    void rewriteMainBuffer(uint32_t imageIndex);
-
-    VkCommandBufferInheritanceInfo createMainBufferInheritanceInfo(uint32_t imageIndex);
-
-    void callRenderBuffers(int imageIndex, VkCommandBuffer cb);
-
-    //SYNC OBJECTS
-    void createSyncObjects();
-
-    //DEBUG
-    //extracts pointers on functions for create and destroy DebugUtilsMessengerEXT
-    VkResult CreateDebugUtilsMessengerEXT(VkInstance instance,
-                                          const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
-                                          const VkAllocationCallbacks *pAllocator,
-                                          VkDebugUtilsMessengerEXT *pDebugMessenger);
-
-    void DestroyDebugUtilsMessengerEXT(VkInstance instance,
-                                       VkDebugUtilsMessengerEXT debugMessenger,
-                                       const VkAllocationCallbacks *pAllocator);
-
-    //check if installed vulkan supported necessary validation layers
-    bool checkValidationLayerSupport();
-    //calls for debug messages
-    VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
-            VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-            VkDebugUtilsMessageTypeFlagsEXT messageType,
-            const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData);
-
-    void setupDebugMessenger();
-
-    //  this structure uses twice: instance creation && DebugMessenger
-    inline void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo);
-
-
-
-    //TOUCHES
-    void processTouches();
-
     //create shader module from binary code(char array)
     [[maybe_unused]] VkShaderModule createShaderModule(const std::vector<char> &code);
-
     //create shader module from binary code(uint32_t array)
     [[maybe_unused]] VkShaderModule createShaderModule(const std::vector<uint32_t> &code);
-
     //read shader file using ISysRes interface
     [[maybe_unused]] VkShaderModule loadPrecompiledShader(const std::string &filename);
-
     //retrieve device name
-    std::string getDeviceName(VkPhysicalDevice device);
-
+    std::string getDeviceName(VkPhysicalDevice physicalDevice);
     int addInitCallback(const std::function<void()>& callback, int priority= 0);
     //called before destroying of engine
     int addDestroyCallback(const std::function<void()>& callback, int priority= 0);
@@ -271,12 +145,10 @@ namespace vkbase
     //if possible it is better to use prepare callback for heavy computations which will be called before waiting for rendering of next frame finished
     //this should be used for updating data which are used in rendering
     int addRewriteBuffersCallback(const std::function<void( uint32_t)>& callback, int priority= 0);
-
     int addWriteMainBufferCallback(const std::function<void(VkCommandBuffer, uint32_t)>& callback, int priority= 0);
     int addTouchHandler(const std::function<void(const sys::TouchEvent&)>& callback, int priority= 0);
     int addSurfaceChangedHandler(const std::function<void()>& callback, int priority= 0);
     int addMessagesListener(const std::function<void(std::string_view,MessageType)>& listener,int priority=0);
-
     void removeInitCallback(int id);
     void removeDestroyCallback(int id);
     void removeDrawPrepareCallback(int id);
@@ -285,10 +157,10 @@ namespace vkbase
     void removeTouchHandler(int id);
     void removeSurfaceChangedHandler(int id);
     void removeMessagesListener(int id);
-
     void info(const std::string& str);
     void error(const std::string& str);
     void warning(const std::string& str);
-
+    VkCommandBufferInheritanceInfo createMainBufferInheritanceInfo(uint32_t imageIndex);
+    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties, VkMemoryHeapFlags heapFlags);
     double timestampToSeconds(uint64_t timestampCount);
 }

@@ -29,7 +29,14 @@ bool ShaderEditor::draw(const std::string& error)
 
     try
     {
+        auto& io = ImGui::GetIO();
         mainEditor.Render("Code");
+        //capture keyboard input if current window is focused
+        if(ImGui::IsWindowFocused())
+        {
+            io.WantCaptureKeyboard = true;
+        }
+
     }
     catch (const std::exception& e)
     {
@@ -71,11 +78,15 @@ void ShaderEditor::initEditor(TextEditor& editor, AbstractShaderCompiler& compil
 
     editor.SetShowWhitespaces(false);
     editor.SetText(compiler.getSource());
+
 }
+
 
 void ShaderEditor::setSourceCode(const std::string &code)
 {
+    auto cursorPos = mainEditor.GetCursorPosition();
     mainEditor.SetText(code);
+    mainEditor.SetCursorPosition(cursorPos);
 }
 
 std::string ShaderEditor::getSourceCode()

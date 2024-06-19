@@ -73,7 +73,7 @@ void Fractal::drawEditor(bool *open)
 
     ImGui::SetNextWindowSize(ImVec2(500, 400), ImGuiCond_FirstUseEver);
 
-    if(ImGui::Begin("Shader Editor",open, ImGuiWindowFlags_MenuBar))
+    if(ImGui::Begin("Shader Editor",open, ImGuiWindowFlags_NoNav))
     {
         if(fileForMirroring.empty())
         {
@@ -110,7 +110,7 @@ void Fractal::drawEditor(bool *open)
                 break;
         }
 
-        if(ImGui::BeginChild("Editor",ImVec2(0,0),true))
+        if(ImGui::BeginChild("Editor",ImVec2(0,0)),0,ImGuiWindowFlags_NoNav)
         {
             if(shaderEditor->draw(shaderModel->errorMessage))
             {
@@ -381,19 +381,29 @@ void Fractal::processInput()
         p["t"].get<float>()+=io.DeltaTime;
     if(p.contains("dt")&&p["dt"].type=="float")
         p["dt"].get<float>()=io.DeltaTime;
+    if(p.contains("t")&&p["t"].type=="double")
+        p["t"].get<double>()+=io.DeltaTime;
+    if(p.contains("dt")&&p["dt"].type=="double")
+        p["dt"].get<double>()=io.DeltaTime;
 
     //mouse data
     if(!io.WantCaptureMouse)
     {
+        //mouse pos inside viewport
+        float relativePosX=+io.MousePos.x- ImGui::GetWindowViewport()->Pos.x;
+        float relativePosY=+io.MousePos.y- ImGui::GetWindowViewport()->Pos.y;
+
+
+
         if(p.contains("mouse_pos")&&p["mouse_pos"].type=="vec2")
-            p["mouse_pos"].get<glm::vec2>()=glm::vec2(io.MousePos.x,io.MousePos.y);
+            p["mouse_pos"].get<glm::vec2>()=glm::vec2(relativePosX,relativePosY);
         if(p.contains("mouse_delta")&&p["mouse_delta"].type=="vec2")
             p["mouse_delta"].get<glm::vec2>()=glm::vec2(io.MouseDelta.x,io.MouseDelta.y);
         if(p.contains("mouse_wheel_delta")&&p["mouse_wheel_delta"].type=="float")
             p["mouse_wheel_delta"].get<float>()=io.MouseWheel;
 
         if(p.contains("mouse_pos")&&p["mouse_pos"].type=="dvec2")
-            p["mouse_pos"].get<glm::dvec2>()=glm::dvec2(io.MousePos.x,io.MousePos.y);
+            p["mouse_pos"].get<glm::dvec2>()=glm::dvec2(relativePosX,relativePosY);
         if(p.contains("mouse_delta")&&p["mouse_delta"].type=="dvec2")
             p["mouse_delta"].get<glm::dvec2>()=glm::dvec2(io.MouseDelta.x,io.MouseDelta.y);
         if(p.contains("mouse_wheel_delta")&&p["mouse_wheel_delta"].type=="double")
@@ -627,7 +637,7 @@ void Fractal::exportWindow(bool *show)
 
                                                          nfdchar_t *outPath;
                                                          nfdfilteritem_t filterItems[] = {{"PNG", "png" }, {"BMP", "bmp" }, {"JPEG", "jpg" }, {"TGA", "tga" }};
-                                                         nfdresult_t result = NFD_SaveDialog(&outPath, filterItems, std::size(filterItems), nullptr, (getName() + ".tga").c_str());
+                                                         nfdresult_t result = NFD_SaveDialog(&outPath, filterItems, std::size(filterItems), nullptr, (getName() ).c_str());
                                                          if (result == NFD_OKAY)
                                                          {
                                                              std::string filename = outPath;
@@ -647,7 +657,7 @@ void Fractal::exportWindow(bool *show)
 
                                                          return std::pair<std::string,std::string>{"",""};
                                                      },
-                                                     [this](std::pair<std::string,std::string> fileNameAndType)
+                                                     [this](std::pair<std::string,std::string> fileNameAndType)//sync
                                                      {
                                                         std::string extension=fileNameAndType.second;
                                                         std::string fileName=fileNameAndType.first;

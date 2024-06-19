@@ -2,6 +2,7 @@
 #include "imgui/imgui.h"
 #include <cstdint>
 #include <vulkan/vulkan.h>
+#include <functional>
 
 namespace vkbase::imgui
 {
@@ -23,4 +24,10 @@ namespace vkbase::imgui
     VkDescriptorSetLayout getIMGUIDescriptorSetLayout();
 
     void dockWindow(const char* A, const char* B, float proportion);
+
+    int addOnUiCallback(const std::function<void()>& callback, int priority= 0);
+    void removeOnUiCallback(int id);
+
+    float getFontSize();
+    void setFontSize(float size);
 }

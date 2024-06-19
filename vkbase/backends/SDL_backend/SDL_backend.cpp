@@ -27,8 +27,13 @@
         ((void)fprintf(stderr, __VA_ARGS__))
 #endif
 
+namespace vkbase
+{
+    extern std::string  m_appName;
+}
 namespace vkbase::sys
 {
+
     Event<SDL_Event*> sdlEvent;
 
     SDL_Window *window;
@@ -37,7 +42,9 @@ namespace vkbase::sys
     void fullscreen(bool enable)
     {
         if (enable)
-            SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN);
+        {
+            SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
+        }
         else
             SDL_SetWindowFullscreen(window, 0);
     }
@@ -64,10 +71,10 @@ namespace vkbase::sys
 
         SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_VULKAN
                                                          | SDL_WINDOW_RESIZABLE | SDL_WINDOW_MAXIMIZED);
-        SDL_Window* window = SDL_CreateWindow("Fractal Engine", 0,0,
+        SDL_Window* w = SDL_CreateWindow(m_appName.c_str(), 0,0,
                                               width, height, window_flags);
 
-        sys::window = window;
+        sys::window = w;
 
 
         //disable SDL mouse simulation with touch events

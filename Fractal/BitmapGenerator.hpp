@@ -67,7 +67,7 @@ private:
 
     void createDescriptorSet(VkDescriptorSetLayout descriptorSetLayout, VkDescriptorPool descriptorPool);
 
-    void CreateQueryPool();
+    void createQueryPool();
 
     void createCommandBuffer();
 

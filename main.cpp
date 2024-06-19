@@ -118,7 +118,7 @@ void saveAs(bool copy=false)
             }
             else if (result == NFD_CANCEL)
             {
-                std::cout<< "User pressed cancel." << std::endl;
+                //std::cout<< "User pressed cancel." << std::endl;w
             }
             else if (result == NFD_ERROR)
             {
@@ -188,9 +188,15 @@ void saveAll()
             }
         }
     j["cache"]=cacheData;
+    j["font_size"]=vkbase::imgui::getFontSize();
     j["show"]=std::vector<char>(reinterpret_cast<char*>(&show),reinterpret_cast<char*>(&show)+sizeof(show));
+    j["imgui"]=  ImGui::SaveIniSettingsToMemory();
+
     std::ofstream file("cache.json");
     file<<j.dump(4);
+
+
+
     file.close();
 }
 
@@ -247,7 +253,10 @@ void loadAll()
     {
         std::ifstream file("cache.json");
         nlohmann::json j;
-        file >> j;
+        if(file)
+            file >> j;
+        else
+            j=nlohmann::json::parse(vkbase::assets["other/cache.json"]);
         file.close();
 
         for(auto& f:j["opened"])
@@ -283,6 +292,13 @@ void loadAll()
         }
         if(j.contains("show"))
             show = *reinterpret_cast<Show*>(j["show"].get<std::vector<char>>().data());
+        if(j.contains("font_size"))
+            vkbase::imgui::setFontSize(j["font_size"].get<float>());
+        if(j.contains("imgui"))
+        {
+            auto data = j["imgui"].get<std::string>();
+            ImGui::LoadIniSettingsFromMemory(data.c_str() , data.size());
+        }
         cacheData=j["cache"];
     }
     catch(const std::exception &e)
@@ -325,10 +341,27 @@ void closeFractal(int fractalToClose)
         activeFractalIndex=static_cast<int>(fractals.size()-1) ;
 }
 
+
+
 void drawMenuBarUI()
 {
+    static bool showMenu = true;
+
+    //show menu if mouse is over it for fullscreen mode when ui is hidden
+    if(!show.fullscreen || show.any || ImGui::GetIO().MousePos.y<ImGui::GetMainViewport()->Pos.y+vkbase::imgui::getFontSize()*2||
+    ImGui::IsKeyDown(ImGui::GetKeyIndex(ImGuiKey_LeftCtrl))||ImGui::IsKeyDown(ImGui::GetKeyIndex(ImGuiKey_RightCtrl)))
+    {
+        showMenu = true;
+    }
+
+
+   if(!showMenu)//hide menu
+       return;
+
+
     if(ImGui::BeginMainMenuBar())
     {
+
         if(ImGui::BeginMenu("File"))
         {
             if(ImGui::BeginMenu("New", "Ctrl+N"))
@@ -398,6 +431,7 @@ void drawMenuBarUI()
 
         if(ImGui::BeginMenu("View"))
         {
+
             if(ImGui::MenuItem("Show UI", "Ctrl+`", show.any))
             {
                 show.any = !show.any;
@@ -418,7 +452,7 @@ void drawMenuBarUI()
             {
                 show.debugInfo = !show.debugInfo;
             }
-            if(ImGui::MenuItem("Compilation status", nullptr, show.errorLog))
+            if(ImGui::MenuItem("Compilation status", "Ctrl+R", show.errorLog))
             {
                 show.errorLog = !show.errorLog;
             }
@@ -440,6 +474,9 @@ void drawMenuBarUI()
         }
         ImGui::EndMainMenuBar();
     }
+
+    showMenu= ImGui::IsAnyItemFocused() || ImGui::IsAnyItemActive() || ImGui::IsAnyItemHovered() ;
+
 }
 
 void processShortcuts()
@@ -454,54 +491,80 @@ void processShortcuts()
         }
         if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_S)))
         {
-            if (ImGui::IsKeyDown(ImGui::GetKeyIndex(ImGuiKey_LeftShift))||ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_LeftShift)))
+            if (ImGui::IsKeyDown(ImGui::GetKeyIndex(ImGuiKey_LeftShift))||ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_LeftShift)))//save copy as (Ctrl+Shift+S)
             {
                 saveAs(true);
             }
-            else if(!fractals[activeFractalIndex]->save())
+            else if(!fractals[activeFractalIndex]->save())//save (Ctrl+S)
             {
                 saveAs();
             }
         }
-        if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_A)))
+
+        if ((ImGui::IsKeyDown(ImGui::GetKeyIndex(ImGuiKey_LeftShift))||ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_LeftShift)))&&
+        ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_A)))//save all (Ctrl+Shift+A)
         {
             saveAll();
         }
         //View
-        if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_E)))
+        if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_E)))//editor (Ctrl+E)
         {
             show.editor = !show.editor;
         }
-        if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_L)))
+        if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_L))) //log (Ctrl+L)
         {
             show.log = !show.log;
         }
-        if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_P)))
+        if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_P))) //parameters (Ctrl+P)
         {
             show.parameters = !show.parameters;
         }
-        if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_D)))
+        if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_D))) //debug info (Ctrl+D)
         {
             show.debugInfo = !show.debugInfo;
         }
-        if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_A)))
+        if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_R))) //compilation status (Ctrl+R)
         {
             show.errorLog = !show.errorLog;
         }
-        if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Q)))
+        if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Q))) //export (Ctrl+Q)
         {
             show.exportWindow = !show.exportWindow;
         }
-        if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_GraveAccent)))
+        if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_GraveAccent))) //show UI (Ctrl+`)
         {
             show.any = !show.any;
         }
-        if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Tab)))
+        if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Tab))) //switch tabs
         {
             ctrlTabMode = true;
             if(!lastTabs.empty())
                 switchToTab=getIndexOfFractal(lastTabs[++lastTabOffset%lastTabs.size()]);
         }
+        //font size
+        if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Equal)))
+        {
+            vkbase::imgui::setFontSize(vkbase::imgui::getFontSize()+1);
+        }
+        if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Minus)))
+        {
+            vkbase::imgui::setFontSize(vkbase::imgui::getFontSize()-1);
+        }
+        if(ImGui::GetIO().MouseWheel!=0)
+        {
+            vkbase::imgui::setFontSize(vkbase::imgui::getFontSize()+ImGui::GetIO().MouseWheel);
+        }
+
+        if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_LeftAlt)))
+        {
+            //remove focus from any item
+            if(ImGui::IsAnyItemFocused()||ImGui::IsAnyItemActive())
+                ImGui::SetWindowFocus(nullptr);
+            else
+                ImGui::SetWindowFocus("Code");
+
+        }
+
     }
     else if(activeFractalIndex>=0)
     {
@@ -542,7 +605,7 @@ void drawErrorLog()
 void ui()
 {
     drawMenuBarUI();
-    processShortcuts();
+
 
     if(!show.any)
     {
@@ -550,79 +613,83 @@ void ui()
         {
             switchActiveFractal(switchToTab);
         }
-        return;
     }
-
-    //fullscreen main window over main viewport
-    ImGui::SetNextWindowPos(ImGui::GetWindowViewport()->WorkPos);
-    ImGui::SetNextWindowSize(ImGui::GetWindowViewport()->WorkSize);
-    if(ImGui::Begin("Main", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
-                                     ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus |
-                                     ImGuiWindowFlags_NoBackground))
+    else
     {
-        ImGui::PushStyleColor(ImGuiCol_Tab, ImVec4(0.1f, 0.1f, 0.1f, 0.9f));
-
-        if(ImGui::BeginTabBar("Fractals", ImGuiTabBarFlags_Reorderable|ImGuiTabBarFlags_AutoSelectNewTabs ))
+        //fullscreen main window over main viewport
+        ImGui::SetNextWindowPos(ImGui::GetWindowViewport()->WorkPos);
+        ImGui::SetNextWindowSize(ImGui::GetWindowViewport()->WorkSize);
+        if(ImGui::Begin("Main", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+                                         ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus |
+                                         ImGuiWindowFlags_NoBackground))
         {
-            int fractalToClose = -1;
-            for(int i = 0; i<fractals.size() ; ++i)
+            ImGui::PushStyleColor(ImGuiCol_Tab, ImVec4(0.1f, 0.1f, 0.1f, 0.9f));
+
+            if(ImGui::BeginTabBar("Fractals", ImGuiTabBarFlags_Reorderable | ImGuiTabBarFlags_AutoSelectNewTabs))
             {
-                bool open = true;
-                int flags = 0;
-
-                if(i == switchToTab)
+                int fractalToClose = -1;
+                for(int i = 0; i < fractals.size(); ++i)
                 {
-                    flags |= ImGuiTabItemFlags_SetSelected;
-                    switchToTab = -1;
+                    bool open = true;
+                    int flags = 0;
+
+                    if(i == switchToTab)
+                    {
+                        flags |= ImGuiTabItemFlags_SetSelected;
+                        switchToTab = -1;
+                    }
+
+                    ImGui::PushID(i);
+                    if(ImGui::BeginTabItem((fractals[i]->getName() + "###").c_str(), &open, flags))
+                    {
+                        switchActiveFractal(i);
+                        ImGui::EndTabItem();
+                    }
+                    //if hovered over show path
+                    if(ImGui::IsItemHovered())
+                    {
+                        ImGui::SetTooltip("%s", fractals[i]->getSavePath().c_str());
+                    }
+                    ImGui::PopID();
+
+                    if(!open)
+                    {
+                        fractalToClose = i;
+                    }
                 }
 
-                ImGui::PushID(i);
-                if(ImGui::BeginTabItem((fractals[i]->getName()+"###").c_str(), &open, flags))
-                {
-                    switchActiveFractal(i);
-                    ImGui::EndTabItem();
-                }
-                //if hovered over show path
-                if(ImGui::IsItemHovered())
-                {
-                    ImGui::SetTooltip("%s", fractals[i]->getSavePath().c_str());
-                }
-                ImGui::PopID();
 
-                if(!open)
-                {
-                    fractalToClose = i;
-                }
-            }
-
-            if(activeFractalIndex>=0)
-            {
                 ImGui::DockSpace(ImGui::GetID("DockSpace"), ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
-                fractals[activeFractalIndex]->ui(&show.parameters, &show.editor, &show.exportWindow);
+
+                if(show.debugInfo)
+                    vkbase::imgui::showDebugWindow();
+
+                if(show.log)
+                    vkbase::imgui::drawEngineMessagesLog();
+
+                if(show.errorLog)
+                    drawErrorLog();
+
+                if(activeFractalIndex >= 0)
+                {
+                    fractals[activeFractalIndex]->ui(&show.parameters, &show.editor, &show.exportWindow);
+                }
+
+                if(fractalToClose >= 0)
+                {
+                    closeFractal(fractalToClose);
+                }
+
+                ImGui::EndTabBar();
             }
 
-
-            if(fractalToClose>=0)
-            {
-                closeFractal(fractalToClose);
-            }
-
-            ImGui::EndTabBar();
+            ImGui::PopStyleColor();
         }
-
-        ImGui::PopStyleColor();
+        ImGui::End();
     }
-    ImGui::End();
 
-
-    if(show.debugInfo)
-        vkbase::imgui::showDebugWindow();
-
-    if(show.log)
-        vkbase::imgui::drawEngineMessagesLog();
-
-    if(show.errorLog)
-        drawErrorLog();
+    //after everything else to be sure that input does not consumed by other windows
+    processShortcuts();
 }
 
 
@@ -652,37 +719,46 @@ void openFractal()
 }
 
 
+void initErrorLog()
+{
+    auto palette = TextEditor::GetDarkPalette();
+    palette[(int)TextEditor::PaletteIndex::Background] = ImGui::GetColorU32(ImGuiCol_WindowBg,0.5);
+    palette[(int)TextEditor::PaletteIndex::CharLiteral] = ImGui::GetColorU32(ImGuiCol_Text,0.5);
+    palette[(int)TextEditor::PaletteIndex::Comment] = 0x9900ff10;
+    palette[(int)TextEditor::PaletteIndex::CurrentLineFillInactive]=ImGui::GetColorU32(ImGuiCol_WindowBg,0.7);
+    errorLog.SetPalette(palette);
+    errorLog.SetReadOnly(true);
+    errorLog.SetShowWhitespaces(false);
+}
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char** args)
 {
     try
     {
-        vkbase::init();//init engine
+        vkbase::init("IPTE");//init engine
 
         vkbase::imgui::initIMGUI();//init imgui
         vkbase::imgui::registerEngineMessagesLog();//copy engine messages to imgui log window
         NFD_Init();//init native file dialog
         initTemplates();
+        initErrorLog();
 
-
-        auto palette = TextEditor::GetDarkPalette();
-        palette[(int)TextEditor::PaletteIndex::Background] = ImGui::GetColorU32(ImGuiCol_WindowBg,0.5);
-        palette[(int)TextEditor::PaletteIndex::CharLiteral] = ImGui::GetColorU32(ImGuiCol_Text,0.5);
-        palette[(int)TextEditor::PaletteIndex::Comment] = 0x9900ff10;
-        palette[(int)TextEditor::PaletteIndex::CurrentLineFillInactive]=ImGui::GetColorU32(ImGuiCol_WindowBg,0.7);
-        errorLog.SetPalette(palette);
-        errorLog.SetReadOnly(true);
-        errorLog.SetShowWhitespaces(false);
+        vkbase::imgui::setFontSize(16);
+        ImGui::GetIO().IniFilename = nullptr;
 
         //load cache data
         loadAll();
 
         vkbase::sys::fullscreen(show.fullscreen);
 
+        vkbase::imgui::addOnUiCallback(ui);
+
+
+
         //main loop
         while (vkbase::handleEvents()&&!exitFlag)
         {
-            ui();
+            //ui();
             openFractal();
             autoSave();
             vkbase::drawFrame();

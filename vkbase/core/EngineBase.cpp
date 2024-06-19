@@ -15,6 +15,68 @@
 
 namespace vkbase
 {
+    //describe the render pass
+    void createRenderPass();
+    //SETUP VULKAN DEVICES
+    //create instance
+    void createInstance();
+    //find a suitable physical device
+    void pickPhysicalDevice();
+    //check if physical device supports all requirements
+    bool isDeviseSuitable(VkPhysicalDevice &physDevise);
+    //check if physical device supports all required extensions
+    bool checkDeviceExtensionSupport(VkPhysicalDevice device);
+    //create logical device
+    void createLogicalDevice();
+    //find necessary queue families for selected device
+    inline QueueFamilyIndices findQueueFamilies(VkPhysicalDevice physDevice);
+
+    void createSwapChain();
+    void recreateSwapChain();
+    void cleanupSwapChain();
+    void createImageViews();
+    SwapChainSupportDetails querySwapChainDetails(VkPhysicalDevice physDevice);
+    static VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats);
+    static VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes);
+    VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities);
+    static VkCompositeAlphaFlagBitsKHR chooseSwapChainCompositeAlpha(VkCompositeAlphaFlagsKHR availableAlpha);
+    void createFrameBuffers();
+    //create command pool with support for buffer overwriting without the need to flush the entire pool
+    void createCommandPoolReset();
+    void createMainCommandBuffers();
+    void rewriteMainBuffer(uint32_t imageIndex);
+    void createTimestampsQueryPool();
+
+    //SYNC OBJECTS
+    void createSyncObjects();
+
+    //DEBUG
+    //extracts pointers on functions for create and destroy DebugUtilsMessengerEXT
+    VkResult CreateDebugUtilsMessengerEXT(VkInstance instance,
+                                          const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
+                                          const VkAllocationCallbacks *pAllocator,
+                                          VkDebugUtilsMessengerEXT *pDebugMessenger);
+
+    void DestroyDebugUtilsMessengerEXT(VkInstance instance,
+                                       VkDebugUtilsMessengerEXT debugMessenger,
+                                       const VkAllocationCallbacks *pAllocator);
+
+    //check if installed vulkan supported necessary validation layers
+    bool checkValidationLayerSupport();
+    //calls for debug messages
+    VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+            VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+            VkDebugUtilsMessageTypeFlagsEXT messageType,
+            const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData);
+
+    void setupDebugMessenger();
+
+    //  this structure uses twice: instance creation && DebugMessenger
+    inline void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo);
+
+    //TOUCHES
+    void processTouches();
+
     //EVENTS
     Event<> onInitEvent;
     Event<> onDestroyEvent;
@@ -25,26 +87,24 @@ namespace vkbase
     Event<> onSurfaceChangedEvent;
     Event<std::string_view, MessageType> onMessage;
 
-    //CONSTANTS, SETTINGS
-    //assets (constructor will initialize it)
-
 
     //the desired number of frames to be processed simultaneously (corrected when creating a swapchain with restrictions)
     uint32_t imageCount = 1;//{dep swapchain}
+    double lastFrameTime;
 
     glm::vec4 clearColor = {0.0f, 0.0f, 0.0f, 1.0f};//{dep render pass}
 
-        //required extensions for device
-        std::vector<const char *> deviceExtensions{
-                VK_KHR_SWAPCHAIN_EXTENSION_NAME
-        };
-        //required features for device
-        const VkPhysicalDeviceFeatures deviceFeatures{.shaderFloat64=VK_TRUE};
+    //required extensions for device
+    std::vector<const char *> deviceExtensions{
+            VK_KHR_SWAPCHAIN_EXTENSION_NAME
+    };
+    //required features for device
+    const VkPhysicalDeviceFeatures deviceFeatures{.shaderFloat64=VK_TRUE};
 
-        //ValidationLayers
-        static constexpr std::array<const char *, 1> validationLayers = {
-                "VK_LAYER_KHRONOS_validation"
-        };
+    //ValidationLayers
+    static constexpr std::array<const char *, 1> validationLayers = {
+            "VK_LAYER_KHRONOS_validation"
+    };
 
     #ifdef NDEBUG//Release
         static constexpr bool enableValidationLayers = false;
@@ -54,7 +114,10 @@ namespace vkbase
 
 
 
+
     //VARS
+
+    std::string m_appName{"VulkanApp"};
     //VK instance
     VkInstance instance{nullptr};
     //debug messenger(response for debug messages callback)
@@ -100,6 +163,9 @@ namespace vkbase
     //rendering finished and image can be presented
     std::vector<VkSemaphore> renderFinishedSemaphores;
 
+    //timestamps
+    VkQueryPool mTimeQueryPool{VK_NULL_HANDLE};
+
     //FENCES (sync CPU & GPU)
     std::vector<VkFence> fenceRenderFinished;
     //current frame
@@ -111,6 +177,64 @@ namespace vkbase
     //TOUCHES
     sys::EngEvents engEvents;
     TouchData touchData;
+
+
+    class OneTimeCommandBuffer
+    {
+    public:
+        VkCommandBuffer commandBuffer{VK_NULL_HANDLE};
+        OneTimeCommandBuffer()
+        {
+            assert(commandPoolReset!=VK_NULL_HANDLE && "Command pool is not created!");
+            VkCommandBufferAllocateInfo allocInfo{};
+            allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+            allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+            allocInfo.commandPool = commandPoolReset;
+            allocInfo.commandBufferCount = 1;
+
+            vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+
+            VkCommandBufferBeginInfo beginInfo{};
+            beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+            vkBeginCommandBuffer(commandBuffer, &beginInfo);
+        }
+
+        operator VkCommandBuffer() const
+        {
+            return commandBuffer;
+        }
+
+        bool submit()
+        {
+            return submit(graphicsQueue);
+        }
+
+        bool submit(VkQueue queue)
+        {
+            vkEndCommandBuffer(commandBuffer);
+
+            VkSubmitInfo submitInfo{};
+            submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            submitInfo.commandBufferCount = 1;
+            submitInfo.pCommandBuffers = &commandBuffer;
+
+            if (vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
+                return false;
+
+            vkQueueWaitIdle(queue);
+            return true;
+        }
+
+        ~OneTimeCommandBuffer()
+        {
+            vkFreeCommandBuffers(device, commandPoolReset, 1, &commandBuffer);
+        }
+    };
+
+
+
 
     void info_internal(const char* str, int len)
     {
@@ -163,13 +287,11 @@ namespace vkbase
         deviceExtensions.push_back(extension);
     }
 
-    void waitForRenderEnd(uint64_t timeout)
-    {
-        vkWaitForFences(device, fenceRenderFinished.size(), fenceRenderFinished.data(), VK_TRUE, timeout);
-    }
 
-    int init()
+
+    int init(const std::string &appName)
     {
+        m_appName = appName;
         redirectOut();//redirect std::cout and std::cerr for handling messages by engine
         sys::init();//init system dependent part
         createInstance();//create vulkan instance
@@ -184,6 +306,7 @@ namespace vkbase
         createFrameBuffers();//uses render pass
         createSyncObjects();
         createCommandPoolReset();//create command pool with ability to reset single command buffer
+        createTimestampsQueryPool();
         createMainCommandBuffers();//crates main command buffers (rewrite every frame)
         onInitEvent.call();//call init events
         return 0;
@@ -453,7 +576,6 @@ namespace vkbase
         onSurfaceChangedEvent.call();
     }
 
-
     inline void cleanupSwapChain()
     {
         if(swapChain!=VK_NULL_HANDLE)
@@ -473,7 +595,6 @@ namespace vkbase
             vkDestroySwapchainKHR(device, swapChain, nullptr);
         }
     }
-
 
     inline void createSwapChain()
     {
@@ -497,7 +618,6 @@ namespace vkbase
         // (0 - means no limitation)
         if (swapChainDetails.capabilities.maxImageCount != 0 && imageCount > swapChainDetails.capabilities.maxImageCount)
             imageCount = swapChainDetails.capabilities.maxImageCount;
-
 
         VkSwapchainCreateInfoKHR createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
@@ -598,7 +718,7 @@ namespace vkbase
     chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats)
     {
         for (VkSurfaceFormatKHR format: availableFormats)
-            if (format.format == VK_FORMAT_B8G8R8A8_SRGB && format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+            if (format.format == VK_FORMAT_B8G8R8A8_UNORM&& format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
                 return format;
         //if there is no preferred format, return the first one
         return availableFormats[0];
@@ -836,6 +956,9 @@ namespace vkbase
                 renderPassInfo.pClearValues=nullptr;
             }
 
+            vkCmdResetQueryPool(cb, mTimeQueryPool, imageIndex*2, 2);
+            vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, mTimeQueryPool, imageIndex*2);
+
             //VK_SUBPASS_CONTENTS_INLINE: Render pass commands will be inlined in the primary command buffer itself, and no secondary command buffers will be executed.
             //VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS: Render pass commands will be executed from secondary command buffers.
             vkCmdBeginRenderPass(cb, &renderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
@@ -844,6 +967,7 @@ namespace vkbase
             }
 
             vkCmdEndRenderPass(cb);
+            vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, mTimeQueryPool, imageIndex*2+1);
         }
 
         if (vkEndCommandBuffer(cb) != VK_SUCCESS) {
@@ -985,6 +1109,20 @@ namespace vkbase
     }
 
 
+    void retrieveFrameTime(uint32_t i)
+    {
+        uint64_t buffer[2];
+        VkResult result = vkGetQueryPoolResults(vkbase::device, mTimeQueryPool, i*2, 2, sizeof(uint64_t) * 2, buffer, sizeof(uint64_t),
+                                                VK_QUERY_RESULT_64_BIT);
+        if (result == VK_SUCCESS)
+        {
+            lastFrameTime=timestampToSeconds(buffer[1] - buffer[0]);
+        }
+        else
+        {
+            lastFrameTime=0;
+        }
+    }
 
     void drawFrame()
     {
@@ -1070,6 +1208,9 @@ namespace vkbase
                         UINT64_MAX);
         //reset fence (will not pass through vkWaitForFences until it is signaled again)
         vkResetFences(device, 1, &fenceRenderFinished[imageIndex]);
+
+        retrieveFrameTime(imageIndex);
+
 
         onDeviceSyncEvent.call(imageIndex);
         rewriteMainBuffer(imageIndex);
@@ -1326,9 +1467,9 @@ namespace vkbase
         throw std::runtime_error("failed to find suitable memory type!");
     }
 
-    std::string getDeviceName(VkPhysicalDevice device) {
+    std::string getDeviceName(VkPhysicalDevice physicalDevice) {
         VkPhysicalDeviceProperties properties;
-        vkGetPhysicalDeviceProperties(device, &properties);
+        vkGetPhysicalDeviceProperties(physicalDevice, &properties);
         std::string vendorName;
         return properties.deviceName+std::string(" (")+std::to_string(properties.deviceID)+std::string(")")+std::string(" (")+std::to_string(properties.vendorID)+std::string(")");
     }
@@ -1352,6 +1493,7 @@ namespace vkbase
             vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
             vkDestroyFence(device, fenceRenderFinished[i], nullptr);
         }
+        vkDestroyQueryPool(vkbase::device, mTimeQueryPool, nullptr);
 
         vkDestroyCommandPool(device, commandPoolReset, nullptr);
 
@@ -1601,7 +1743,6 @@ namespace vkbase
         onMessage.removeCallback(id);
     }
 
-
     void info(const std::string &str)
     {
         info_internal(str.c_str(),static_cast<int>(str.size()));
@@ -1628,6 +1769,32 @@ namespace vkbase
     double timestampToSeconds(uint64_t timestampCount)
     {
         return (double)timestampCount*timestampPeriod / 1000'000'000.0;
+    }
+
+    void createTimestampsQueryPool()
+    {
+        VkQueryPoolCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+        createInfo.pNext = nullptr; // Optional
+        createInfo.flags = 0; // Reserved for future use, must be 0!
+
+        createInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
+        createInfo.queryCount = 2*imageCount;
+
+        VkResult result = vkCreateQueryPool(vkbase::device, &createInfo, nullptr, &mTimeQueryPool);
+        if (result != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create time query pool!");
+        }
+
+        OneTimeCommandBuffer commandBuffer;
+        vkCmdResetQueryPool(commandBuffer.commandBuffer, mTimeQueryPool, 0, 2*imageCount);
+        commandBuffer.submit();
+    }
+
+    void waitForRenderEnd(uint64_t timeout)
+    {
+        vkWaitForFences(device, fenceRenderFinished.size(), fenceRenderFinished.data(), VK_TRUE, timeout);
     }
 
     OnDataUpdateReceiver::OnDataUpdateReceiver(): AbstractEventReceiver<uint32_t>{onDrawPrepareEvent, WRAP_MEMBER_FUNC(onUpdateData)}{}

@@ -15,7 +15,7 @@ void BitmapGenerator::generateBitmap(const std::string &functionHLSL, const std:
     createImage();
     createImageView();
     createFramebuffer();
-    CreateQueryPool();
+    createQueryPool();
     createCommandBuffer();
 
 
@@ -571,7 +571,7 @@ void BitmapGenerator::createDescriptorSet(VkDescriptorSetLayout descriptorSetLay
     }
 }
 
-void BitmapGenerator::CreateQueryPool()
+void BitmapGenerator::createQueryPool()
 {
     VkQueryPoolCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;

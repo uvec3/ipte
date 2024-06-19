@@ -502,6 +502,8 @@ std::string exportFunction(const std::vector<uint32_t>& spirv, const std::string
 
     funcHeader+=")\n{";
 
+    if(!outGLSL)
+        funcBody="\n#define mod(a,b) (a-floor(a/b)*b)\n"+funcBody;
 
     std::string func;
     if(onlyBody)
@@ -1045,7 +1047,7 @@ void ShaderModel::submitComputeBuffer()
     memcpy(parametersIntermediateBuffer.map(), params.data(), params.size());
     parametersIntermediateBuffer.unmap();
 
-
+    //copy keys
     memcpy(keysBuffer.map(), keys, sizeof(keys));
     keysBuffer.unmap();
 

@@ -35,6 +35,7 @@ LOCAL_SRC_FILES := \
 	$(wildcard $(LOCAL_PATH)/src/hidapi/android/*.cpp) \
 	$(wildcard $(LOCAL_PATH)/src/joystick/*.c) \
 	$(wildcard $(LOCAL_PATH)/src/joystick/android/*.c) \
+	$(wildcard $(LOCAL_PATH)/src/joystick/dummy/*.c) \
 	$(wildcard $(LOCAL_PATH)/src/joystick/hidapi/*.c) \
 	$(wildcard $(LOCAL_PATH)/src/joystick/virtual/*.c) \
 	$(wildcard $(LOCAL_PATH)/src/loadso/dlopen/*.c) \
@@ -63,7 +64,6 @@ LOCAL_CFLAGS += -DGL_GLEXT_PROTOTYPES
 LOCAL_CFLAGS += \
 	-Wall -Wextra \
 	-Wdocumentation \
-	-Wdocumentation-unknown-command \
 	-Wmissing-prototypes \
 	-Wunreachable-code-break \
 	-Wunneeded-internal-declaration \
@@ -77,6 +77,8 @@ LOCAL_CFLAGS += \
 
 # Warnings we haven't fixed (yet)
 LOCAL_CFLAGS += -Wno-unused-parameter -Wno-sign-compare
+
+LOCAL_CXXFLAGS += -std=gnu++11
 
 LOCAL_LDLIBS := -ldl -lGLESv1_CM -lGLESv2 -lOpenSLES -llog -landroid
 

@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 add_subdirectory(SDL)
 find_package(Vulkan REQUIRED)
 
-add_library(SDL_backend_core SDL_backend.cpp  )
+add_library(SDL_backend_core SDL_backend.cpp )
 
 target_include_directories(SDL_backend_core
 		PRIVATE ${Vulkan_INCLUDE_DIRS}

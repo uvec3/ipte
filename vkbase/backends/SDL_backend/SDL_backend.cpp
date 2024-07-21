@@ -1,3 +1,5 @@
+#include <iostream>
+
 #include "../../core/SystemBeckend.hpp"
 #include "../../core/Event.hpp"
 #include "SDL_vulkan.h"
@@ -31,6 +33,7 @@ namespace vkbase
 {
     extern std::string  m_appName;
 }
+
 namespace vkbase::sys
 {
 
@@ -39,15 +42,22 @@ namespace vkbase::sys
     SDL_Window *window;
     int w, h;
 
-    void fullscreen(bool enable)
+
+    static bool fullscreenMode=false;
+    void fullscreen(const bool enable)
     {
-        if (enable)
+        if(window)
         {
-            SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
+            if (enable)
+                SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
+            else
+                SDL_SetWindowFullscreen(window, 0);
         }
-        else
-            SDL_SetWindowFullscreen(window, 0);
+        fullscreenMode=enable;
     }
+
+
+
 
     void init()
     {
@@ -69,10 +79,12 @@ namespace vkbase::sys
         int height = DM.h;
 
 
-        SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_VULKAN
-                                                         | SDL_WINDOW_RESIZABLE | SDL_WINDOW_MAXIMIZED);
-        SDL_Window* w = SDL_CreateWindow(m_appName.c_str(), 0,0,
-                                              width, height, window_flags);
+         int window_flags = SDL_WINDOW_VULKAN| SDL_WINDOW_RESIZABLE;
+
+        if(fullscreenMode)
+            window_flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
+
+        SDL_Window* w = SDL_CreateWindow(m_appName.c_str(), 0,0,width, height, window_flags);
 
         sys::window = w;
 

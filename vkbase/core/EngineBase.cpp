@@ -607,6 +607,7 @@ namespace vkbase
         std::cout<<"present mode: "<<std::to_string(presentMode)<<'\n';
         //choose extent
         extent = chooseSwapExtent(swapChainDetails.capabilities);
+        std::cout<<extent.width<<"x"<<extent.height<<"\n";
 
         //choose compositeAlpha
         VkCompositeAlphaFlagBitsKHR compositeAlpha=chooseSwapChainCompositeAlpha(swapChainDetails.capabilities.supportedCompositeAlpha);

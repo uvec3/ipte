@@ -78,7 +78,6 @@ void ShaderEditor::initEditor(TextEditor& editor, AbstractShaderCompiler& compil
 
     editor.SetShowWhitespaces(false);
     editor.SetText(compiler.getSource());
-
 }
 
 

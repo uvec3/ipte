@@ -16,7 +16,7 @@ public:
 
     virtual std::vector<uint32_t> compile() = 0;
     virtual std::vector<uint32_t> compileCompute() = 0;
-    virtual std::vector<uint32_t> compileForExport(std::string parametersInit) = 0;
+    virtual std::vector<uint32_t> compileForExport(std::string funcName, std::string additionalArguments, std::string parametersInit) = 0;
     virtual std::string getSourceFromOther(AbstractShaderCompiler& other) = 0;
     virtual ~AbstractShaderCompiler()= default;
 

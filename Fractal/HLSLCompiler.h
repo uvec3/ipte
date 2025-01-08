@@ -3,6 +3,7 @@
 #include "AbstractShaderCompiler.h"
 #include "../vkbase/extensions/ShadersRC/ShadersRC.hpp"
 
+
 class HLSLCompiler: public AbstractShaderCompiler
 {
 public:
@@ -13,6 +14,6 @@ public:
 
     std::string getSourceFromOther(AbstractShaderCompiler &other) override;
 
-    std::vector<uint32_t> compileForExport(std::string parametersInit) override;
+    std::vector<uint32_t> compileForExport(std::string funcName, std::string additionalArguments, std::string parametersInit) override;
 };
 

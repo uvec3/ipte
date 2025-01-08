@@ -1,12 +1,10 @@
 #include "HLSLCompiler.h"
 
 #include <shaderc/shaderc.hpp>
-
-
-
+#include <iostream>
 
 //int find "Type output(.....) {"
-size_t findOutputFunction(const std::string& source)
+size_t findOutputFunction(const std::string& source,size_t& openingParenthesis, size_t& closingParenthesis,size_t& closingBrace)
 {
     std::string outputFuncName{"output"};
     size_t begin=0;
@@ -16,7 +14,7 @@ size_t findOutputFunction(const std::string& source)
         begin = source.find(outputFuncName, begin);
 
         //find '('
-        auto i=source.find('(',begin);
+        auto i= openingParenthesis=source.find('(',begin);
         if(i==std::string::npos)
         {
             begin++;
@@ -40,7 +38,7 @@ size_t findOutputFunction(const std::string& source)
         }
 
         //find ')'
-        i=source.find(')',i);
+        closingParenthesis= i=source.find(')',i);
         if(i==std::string::npos)
         {
             begin++;
@@ -67,7 +65,12 @@ size_t findOutputFunction(const std::string& source)
             }
         }
         if(checkFlag)
-            return j+1;
+        {
+            closingBrace=source.find('}',j);
+            if(closingBrace!=std::string::npos)
+                return j + 1;
+            return std::string::npos;
+        }
         begin++;
     }
 
@@ -183,13 +186,32 @@ std::vector<uint32_t> HLSLCompiler::compileCompute()
     return vkbase::ShadersRC::compileShaderHLSL(src, shaderName, vkbase::ShadersRC::ShaderType::Compute, "___update___", computeShaderDefines);
 }
 
-std::vector<uint32_t> HLSLCompiler::compileForExport(std::string parametersInit)
+std::vector<uint32_t> HLSLCompiler::compileForExport(std::string funcName, std::string additionalArguments, std::string parametersInit)
 {
     std::string src=getSource();
-
-    auto pos=findOutputFunction(src);
-    if(pos==std::string::npos)
+    size_t openingParenthesis, closingParenthesis, closingBrace;
+    size_t body = findOutputFunction(src, openingParenthesis, closingParenthesis,closingBrace);
+    if(body==std::string::npos)
         throw std::runtime_error("Output function not found!");
-    src.insert(pos, parametersInit);
+
+    bool emptyParenthesis = true;
+    for(size_t i=openingParenthesis+1;i<closingParenthesis;i++)
+    {
+        if(src[i]!=' '&&src[i]!='\t'&&src[i]!='\n'&&src[i]!='\r')
+        {
+            emptyParenthesis = false;
+            break;
+        }
+    }
+    if(!emptyParenthesis)
+    {
+        additionalArguments = "," + additionalArguments;
+    }
+
+    src=src.substr(0, closingBrace+1);
+    src.insert(closingParenthesis, additionalArguments);
+    src.insert(body+additionalArguments.size(), parametersInit);
+
+    std::cout<<src<<std::endl;
     return vkbase::ShadersRC::compileShaderHLSL(src, shaderName, vkbase::ShadersRC::ShaderType::Fragment, "output", exportDefines);
 }

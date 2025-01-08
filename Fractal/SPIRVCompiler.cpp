@@ -23,7 +23,7 @@ std::vector<uint32_t> SPIRVCompiler::compileCompute()
     return std::vector<uint32_t>();
 }
 
-std::vector<uint32_t> SPIRVCompiler::compileForExport(std::string parametersInit)
+std::vector<uint32_t> SPIRVCompiler::compileForExport(std::string funcName, std::string additionalArguments, std::string parametersInit)
 {
     return std::vector<uint32_t>();
 }

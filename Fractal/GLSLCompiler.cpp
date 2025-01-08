@@ -20,7 +20,7 @@ std::vector<uint32_t> GLSLCompiler::compileCompute()
     return std::vector<uint32_t>();
 }
 
-std::vector<uint32_t> GLSLCompiler::compileForExport(std::string parametersInit)
+std::vector<uint32_t> GLSLCompiler::compileForExport(std::string funcName, std::string additionalArguments, std::string parametersInit)
 {
     return std::vector<uint32_t>();
 }

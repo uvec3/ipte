@@ -11,7 +11,7 @@ public:
 
     std::vector<uint32_t> compileCompute() override;
 
-    std::vector<uint32_t> compileForExport(std::string parametersInit) override;
+    std::vector<uint32_t> compileForExport(std::string funcName, std::string additionalArguments, std::string parametersInit) override;
 
 
 };

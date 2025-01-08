@@ -9,65 +9,68 @@
 #include <spirv_hlsl.hpp>
 #include <variant>
 
-class NotConvertible{};
-using ParameterToConvert=std::variant<NotConvertible*, int*, glm::ivec2*, glm::ivec3*, glm::ivec4*,
-float*,glm::vec2*, glm::vec3*, glm::vec4*,
-double*, glm::dvec2*, glm::dvec3*, glm::dvec4*,
-uint32_t*, glm::uvec2*, glm::uvec3*, glm::uvec4*>;
-
-ParameterToConvert getConvertable(UniformParameter& p)
+class NotConvertible
 {
-    if(p.type=="int")
-        return reinterpret_cast<int*>(p.data.data());
-    if(p.type=="ivec2")
-        return reinterpret_cast<glm::ivec2*>(p.data.data());
-    if(p.type=="ivec3")
-        return reinterpret_cast<glm::ivec3*>(p.data.data());
-    if(p.type=="ivec4")
-        return reinterpret_cast<glm::ivec4*>(p.data.data());
-    if(p.type=="float")
-        return reinterpret_cast<float*>(p.data.data());
-    if(p.type=="vec2")
-        return reinterpret_cast<glm::vec2*>(p.data.data());
-    if(p.type=="vec3")
-        return reinterpret_cast<glm::vec3*>(p.data.data());
-    if(p.type=="vec4")
-        return reinterpret_cast<glm::vec4*>(p.data.data());
-    if(p.type=="double")
-        return reinterpret_cast<double*>(p.data.data());
-    if(p.type=="dvec2")
-        return reinterpret_cast<glm::dvec2*>(p.data.data());
-    if(p.type=="dvec3")
-        return reinterpret_cast<glm::dvec3*>(p.data.data());
-    if(p.type=="dvec4")
-        return reinterpret_cast<glm::dvec4*>(p.data.data());
-    if(p.type=="uint")
+};
+
+using ParameterToConvert = std::variant<NotConvertible *, int *, glm::ivec2 *, glm::ivec3 *, glm::ivec4 *,
+        float *, glm::vec2 *, glm::vec3 *, glm::vec4 *,
+        double *, glm::dvec2 *, glm::dvec3 *, glm::dvec4 *,
+        uint32_t *, glm::uvec2 *, glm::uvec3 *, glm::uvec4 *>;
+
+ParameterToConvert getConvertable(UniformParameter &p)
+{
+    if(p.type == "int")
+        return reinterpret_cast<int *>(p.data.data());
+    if(p.type == "ivec2")
+        return reinterpret_cast<glm::ivec2 *>(p.data.data());
+    if(p.type == "ivec3")
+        return reinterpret_cast<glm::ivec3 *>(p.data.data());
+    if(p.type == "ivec4")
+        return reinterpret_cast<glm::ivec4 *>(p.data.data());
+    if(p.type == "float")
+        return reinterpret_cast<float *>(p.data.data());
+    if(p.type == "vec2")
+        return reinterpret_cast<glm::vec2 *>(p.data.data());
+    if(p.type == "vec3")
+        return reinterpret_cast<glm::vec3 *>(p.data.data());
+    if(p.type == "vec4")
+        return reinterpret_cast<glm::vec4 *>(p.data.data());
+    if(p.type == "double")
+        return reinterpret_cast<double *>(p.data.data());
+    if(p.type == "dvec2")
+        return reinterpret_cast<glm::dvec2 *>(p.data.data());
+    if(p.type == "dvec3")
+        return reinterpret_cast<glm::dvec3 *>(p.data.data());
+    if(p.type == "dvec4")
+        return reinterpret_cast<glm::dvec4 *>(p.data.data());
+    if(p.type == "uint")
         return reinterpret_cast<uint32_t *>(p.data.data());
-    if(p.type=="uvec2")
-        return reinterpret_cast<glm::uvec2*>(p.data.data());
-    if(p.type=="uvec3")
-        return reinterpret_cast<glm::uvec3*>(p.data.data());
-    if(p.type=="uvec4")
-        return reinterpret_cast<glm::uvec4*>(p.data.data());
-    return reinterpret_cast<NotConvertible*>(0);
+    if(p.type == "uvec2")
+        return reinterpret_cast<glm::uvec2 *>(p.data.data());
+    if(p.type == "uvec3")
+        return reinterpret_cast<glm::uvec3 *>(p.data.data());
+    if(p.type == "uvec4")
+        return reinterpret_cast<glm::uvec4 *>(p.data.data());
+    return reinterpret_cast<NotConvertible *>(0);
 }
 
-bool convert(ParameterToConvert& from, ParameterToConvert& to)
+bool convert(ParameterToConvert &from, ParameterToConvert &to)
 {
-    return std::visit([&to](auto& fromPtr)->bool
-    {
-        return std::visit([&fromPtr](auto& toPtr)->bool
-                          {
-                                if  constexpr (std::is_convertible<decltype(*fromPtr), typename std::remove_reference<decltype(*toPtr)>::type>())
-                                {
-                                    *toPtr= static_cast<std::remove_reference<decltype(*toPtr)>::type>(*fromPtr);
-                                    return true;
-                                }
-                              return false;
+    return std::visit([&to](auto &fromPtr) -> bool
+                      {
+                          return std::visit([&fromPtr](auto &toPtr) -> bool
+                                            {
+                                                if constexpr(std::is_convertible<decltype(*fromPtr), typename std::remove_reference<decltype(*toPtr)>::type>())
+                                                {
+                                                    *toPtr = static_cast<std::remove_reference<decltype(*toPtr)>::type>(*fromPtr);
+                                                    return true;
+                                                }
+                                                return false;
 
-                          },to);
+                                            }, to);
 
-    },from);
+                      }, from);
 }
 
 UniformParameters::UniformParameters(UniformParameters oldParameters, const std::string &reflection)
@@ -77,7 +80,7 @@ UniformParameters::UniformParameters(UniformParameters oldParameters, const std:
         nlohmann::json j = nlohmann::json::parse(reflection.c_str());
 
         std::string buffType = j["ssbos"][0]["type"];
-        std::string structType=j["types"][buffType]["members"][0]["type"];
+        std::string structType = j["types"][buffType]["members"][0]["type"];
         nlohmann::json parametersJson = j["types"][structType]["members"];
         size = j["ssbos"][0]["block_size"];
         //std::cout << parametersJson;
@@ -96,52 +99,53 @@ UniformParameters::UniformParameters(UniformParameters oldParameters, const std:
         if(previous)
             previous->data.resize(size - previous->offset, 0);
     }
-    catch (const std::exception& e)
+    catch(const std::exception &e)
     {
-        std::cout<<"No parameters found!\n";
+        std::cout << "No parameters found!\n";
     }
 
     //copy or remove previous
-    for(auto& [name,p]:oldParameters.activeParameters)
+    for(auto &[name, p]: oldParameters.activeParameters)
     {
-        if(activeParameters.contains(name))//copy if possible
+        if(activeParameters.contains(name))//if exists
         {
-            if(p.type==activeParameters[name].type)
+            if(p.type == activeParameters[name].type)//copy if possible
             {
-                memcpy(activeParameters[name].data.data(), p.data.data(), std::min(p.size(),activeParameters[name].size()) );
-            }
-            else//or try to convert
+                memcpy(activeParameters[name].data.data(), p.data.data(), std::min(p.size(), activeParameters[name].size()));
+            } else//try to convert for different types
             {
-                auto from=getConvertable(p);
-                auto to=getConvertable(activeParameters[name]);
-                convert(from,to);
+                auto from = getConvertable(p);
+                auto to = getConvertable(activeParameters[name]);
+                convert(from, to);
             }
-        }
-        else//move to removed
+            activeParameters[name].metadata = p.metadata;
+            activeParameters[name].isDynamic = p.isDynamic;
+        } else//move to removed
         {
-            removedParameters[name]=p;
+            removedParameters[name] = p;
         }
     }
 
-    //restore
-    for(auto& [name,p]:oldParameters.removedParameters)
+    //restore previously removed
+    for(auto &[name, p]: oldParameters.removedParameters)
     {
         if(activeParameters.contains(name))//try to restore
         {
-            if(p.type==activeParameters[name].type)
+            if(p.type == activeParameters[name].type)
             {
-                memcpy(activeParameters[name].data.data(), p.data.data(), std::min(p.size(),activeParameters[name].size()) );
-            }
-            else//or try to convert
+                memcpy(activeParameters[name].data.data(), p.data.data(), std::min(p.size(), activeParameters[name].size()));
+            } else//or try to convert
             {
-                auto from=getConvertable(p);
-                auto to=getConvertable(activeParameters[name]);
-                convert(from,to);
+                auto from = getConvertable(p);
+                auto to = getConvertable(activeParameters[name]);
+                convert(from, to);
             }
-        }
-        else//copy others removed
+
+            activeParameters[name].metadata = p.metadata;
+            activeParameters[name].isDynamic = p.isDynamic;
+        } else//copy others removed
         {
-            removedParameters[name]=p;
+            removedParameters[name] = p;
         }
     }
 
@@ -149,38 +153,39 @@ UniformParameters::UniformParameters(UniformParameters oldParameters, const std:
 
 std::vector<char> UniformParameters::buildBuffer()
 {
-    std::vector<char> buff(size,0);
+    std::vector<char> buff(size, 0);
     for(auto &[k, p]: activeParameters)
     {
-        memcpy((void*)(buff.data() + p.offset), p.data.data(), p.size());
+        memcpy((void *) (buff.data() + p.offset), p.data.data(), p.size());
     }
     return buff;
 }
 
-void UniformParameters::readFromBuffer(void* buffer)
+void UniformParameters::readFromBuffer(void *buffer)
 {
     for(auto &[k, p]: activeParameters)
     {
-        memcpy( p.data.data(),(reinterpret_cast<char*>(buffer) + p.offset), p.size());
+        memcpy(p.data.data(), (reinterpret_cast<char *>(buffer) + p.offset), p.size());
     }
 }
 
 nlohmann::json UniformParameters::serialize()
 {
     nlohmann::json result;
-    result["size"]=size;
+    result["size"] = size;
 
 
-    for(auto& [name, p]:activeParameters)
+    for(auto &[name, p]: activeParameters)
     {
-        result["members"][name]["name"]=p.name;
-        result["members"][name]["type"]=p.type;
-        result["members"][name]["offset"]=p.offset;
-        result["members"][name]["data"]=p.data;
-        result["members"][name]["metadata"]=p.metadata;
+        result["members"][name]["name"] = p.name;
+        result["members"][name]["type"] = p.type;
+        result["members"][name]["offset"] = p.offset;
+        result["members"][name]["data"] = p.data;
+        result["members"][name]["metadata"] = p.metadata;
+        result["members"][name]["isStatic"] = p.isDynamic;
     }
 
-   // std::cout<<result;
+    // std::cout<<result;
 
     return result;
 }
@@ -189,15 +194,17 @@ void UniformParameters::deserialize(nlohmann::json j)
 {
     activeParameters.clear();
     removedParameters.clear();
-    size=j["size"];
+    size = j["size"];
 
-    for(auto& [name, p]:j["members"].items())
+    for(auto &[name, p]: j["members"].items())
     {
-        activeParameters[name].name=p["name"];
-        activeParameters[name].type=p["type"];
-        activeParameters[name].offset=p["offset"];
-        activeParameters[name].data=p["data"];
-        activeParameters[name].metadata=p["metadata"];
+        activeParameters[name].name = p["name"];
+        activeParameters[name].type = p["type"];
+        activeParameters[name].offset = p["offset"];
+        activeParameters[name].data = p["data"];
+        activeParameters[name].metadata = p["metadata"];
+        if(p.contains("isStatic"))
+            activeParameters[name].isDynamic = p["isStatic"];
     }
 }
 
@@ -210,102 +217,123 @@ void UniformParameters::deserialize(nlohmann::json j)
 //    return 0;
 //}
 
-std::string UniformParameters::initStructureString(const std::string& varName)
+std::string UniformParameters::initStructureString(const std::string &varName)
 {
     std::stringstream ss;
     //setup stream maximal precision for float and double
-    ss <<  std::setprecision(30);
+    ss << std::setprecision(30);
 
-
-
-    for(auto& [name, p]:activeParameters)
+    for(auto &[name, p]: activeParameters)
     {
-        if(p.type == "int")
-            ss << varName << "." << name << "=" << p.get<int>() << ";\n";
-        else if(p.type == "float")
-            ss << varName << "." << name << "=" << p.get<float>() << ";\n";
-        else if(p.type == "uint")
-            ss << varName << "." << name << "=" << p.get<uint32_t>() << ";\n";
-        else if(p.type == "double")
-            ss << varName << "." << name << "=" << p.get<double>() << ";\n";
-        else if(p.type.find("vec") != std::string::npos)
+        if(p.isDynamic)
         {
-            std::string s;
-            s += p.type.back();
-            int count = std::stoi(s);
-            char type = p.type[0];
-
-            for(int i = 0; i < count; ++i)
-            {
-                ss << varName << "." << name << "[" << i << "]=";
-                switch(type)
-                {
-                    case 'v':
-                        ss << p.get<glm::vec4>()[i];
-                        break;
-                    case 'i':
-                        ss << p.get<glm::ivec4>()[i];
-                        break;
-                    case 'u':
-                        ss << p.get<glm::uvec4>()[i];
-                        break;
-                    case 'd':
-                        ss << p.get<glm::dvec4>()[i];
-                        break;
-                    case 'b':
-                        ss << p.get<glm::bvec4>()[i];
-                        break;
-                    default:
-                        break;
-                }
-                ss << ";\n";
-            }
-        } else if(p.type.find("mat") != std::string::npos)
+            ss<<varName<<"."<<name<<"=_arg_"<<name<<";\n";
+        } else
         {
-            std::string sm;
-            sm += p.type[p.type.size() - 2];
-
-            std::string sn;
-            sn += p.type.back();
-
-            int n = std::stoi(sn);
-            int m;
-            try
+            if(p.type == "int")
+                ss << varName << "." << name << "=" << p.get<int>() << ";\n";
+            else if(p.type == "float")
+                ss << varName << "." << name << "=" << p.get<float>() << ";\n";
+            else if(p.type == "uint")
+                ss << varName << "." << name << "=" << p.get<uint32_t>() << ";\n";
+            else if(p.type == "double")
+                ss << varName << "." << name << "=" << p.get<double>() << ";\n";
+            else if(p.type.find("vec") != std::string::npos)
             {
-                m = std::stoi(sm);
-            }
-            catch (const std::exception& e)
-            {
-                m = n;
-            }
+                std::string s;
+                s += p.type.back();
+                int count = std::stoi(s);
+                char type = p.type[0];
 
-            char type = p.type[0];
-            for(int i = 0; i < m; ++i)
-            {
-                for(int j = 0; j < n; ++j)
+                for(int i = 0; i < count; ++i)
                 {
-                    ss << varName << "." << name << "[" << i << "][" << j << "]=";
-
+                    ss << varName << "." << name << "[" << i << "]=";
                     switch(type)
                     {
-                        case 'm':
-                            ss << reinterpret_cast<float *>(p.data.data())[i * n + j];
+                        case 'v':
+                            ss << p.get<glm::vec4>()[i];
                             break;
                         case 'i':
-                            ss << reinterpret_cast<int *>(p.data.data())[i * n + j];
+                            ss << p.get<glm::ivec4>()[i];
                             break;
                         case 'u':
-                            ss << reinterpret_cast<uint32_t *>(p.data.data())[i * n + j];
+                            ss << p.get<glm::uvec4>()[i];
                             break;
                         case 'd':
-                            ss << reinterpret_cast<double *>(p.data.data())[i * n + j];
+                            ss << p.get<glm::dvec4>()[i];
+                            break;
+                        case 'b':
+                            ss << p.get<glm::bvec4>()[i];
                             break;
                         default:
                             break;
                     }
                     ss << ";\n";
                 }
+            } else if(p.type.find("mat") != std::string::npos)
+            {
+                std::string sm;
+                sm += p.type[p.type.size() - 2];
+
+                std::string sn;
+                sn += p.type.back();
+
+                int n = std::stoi(sn);
+                int m;
+                try
+                {
+                    m = std::stoi(sm);
+                }
+                catch(const std::exception &e)
+                {
+                    m = n;
+                }
+
+                char type = p.type[0];
+                for(int i = 0; i < m; ++i)
+                {
+                    for(int j = 0; j < n; ++j)
+                    {
+                        ss << varName << "." << name << "[" << i << "][" << j << "]=";
+
+                        switch(type)
+                        {
+                            case 'm':
+                                ss << reinterpret_cast<float *>(p.data.data())[i * n + j];
+                                break;
+                            case 'i':
+                                ss << reinterpret_cast<int *>(p.data.data())[i * n + j];
+                                break;
+                            case 'u':
+                                ss << reinterpret_cast<uint32_t *>(p.data.data())[i * n + j];
+                                break;
+                            case 'd':
+                                ss << reinterpret_cast<double *>(p.data.data())[i * n + j];
+                                break;
+                            default:
+                                break;
+                        }
+                        ss << ";\n";
+                    }
+                }
             }
+        }
+
+    }
+
+    return ss.str();
+}
+
+std::string UniformParameters::dynamicParametersString()
+{
+    std::stringstream ss;
+    std::string sep=" ";
+    for(auto &[name, p]: activeParameters)
+    {
+        if(p.isDynamic)
+        {
+            ss <<sep << glslToHlsl(p.type) << " _arg_" << name;
+            sep= ", ";
         }
     }
 
@@ -313,11 +341,11 @@ std::string UniformParameters::initStructureString(const std::string& varName)
 }
 
 
-ShaderModel::ShaderModel(std::string name):name(std::move(name))
+ShaderModel::ShaderModel(std::string name) : name(std::move(name))
 {
     compilers.emplace_back(new GLSLCompiler());
     currentCompiler = compilers[0].get();
-    currentCompiler->shaderName = this->name+".frag";
+    currentCompiler->shaderName = this->name + ".frag";
 
     keysBuffer.create(sizeof(keys), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
@@ -330,10 +358,10 @@ ShaderModel::ShaderModel(std::string name):name(std::move(name))
     createRenderBuffers();
     createComputeFence();
     createComputeCommandBuffer();
-    updateBuffers=true;
+    updateBuffers = true;
 
     //sync parameters
-    for(int i=0; i<vkbase::imageCount; i++)
+    for(int i = 0; i < vkbase::imageCount; i++)
     {
         updateUniform(i);
     }
@@ -344,7 +372,7 @@ ShaderModel::ShaderModel(std::string name):name(std::move(name))
 void ShaderModel::setSource(const std::string &source)
 {
     currentCompiler->setSource(source);
-    recomplile=true;
+    recomplile = true;
 
 }
 
@@ -353,38 +381,39 @@ std::string ShaderModel::getSource()
     return currentCompiler->getSource();
 }
 
-std::map<std::string,std::string> glslToHlslType
+std::map<std::string, std::string> glslToHlslType
         {
-                {"vec2","float2"},
-                {"vec3","float3"},
-                {"vec4","float4"},
-                {"mat2","float2x2"},
-                {"mat3","float3x3"},
-                {"mat4","float4x4"},
-                {"mat2x3","float2x3"},
-                {"mat2x4","float2x4"},
-                {"mat3x2","float3x2"},
-                {"mat3x4","float3x4"},
-                {"mat4x2","float4x2"},
-                {"mat4x3","float4x3"},
-                {"ivec2","int2"},
-                {"ivec3","int3"},
-                {"ivec4","int4"},
-                {"uvec2","uint2"},
-                {"uvec3","uint3"},
-                {"uvec4","uint4"},
-                {"sampler2D","Texture2D"},
-                {"sampler3D","Texture3D"},
+                {"vec2",      "float2"},
+                {"vec3",      "float3"},
+                {"vec4",      "float4"},
+                {"mat2",      "float2x2"},
+                {"mat3",      "float3x3"},
+                {"mat4",      "float4x4"},
+                {"mat2x3",    "float2x3"},
+                {"mat2x4",    "float2x4"},
+                {"mat3x2",    "float3x2"},
+                {"mat3x4",    "float3x4"},
+                {"mat4x2",    "float4x2"},
+                {"mat4x3",    "float4x3"},
+                {"ivec2",     "int2"},
+                {"ivec3",     "int3"},
+                {"ivec4",     "int4"},
+                {"uvec2",     "uint2"},
+                {"uvec3",     "uint3"},
+                {"uvec4",     "uint4"},
+                {"sampler2D", "Texture2D"},
+                {"sampler3D", "Texture3D"},
 
         };
 
-std::string glslToHlsl(const std::string& glslT)
+std::string glslToHlsl(const std::string &glslT)
 {
     if(glslToHlslType.contains(glslT))
         return glslToHlslType[glslT];
     return glslT;
 }
-std::string exportFunction(const std::vector<uint32_t>& spirv, const std::string& exportFuncName= "generatedFunc", bool onlyBody= false, bool outGLSL= true)
+
+std::string exportFunction(const std::vector<uint32_t> &spirv, const std::string &exportFuncName = "generatedFunc", bool onlyBody = false, bool outGLSL = true)
 {
     spirv_cross::CompilerReflection compilerReflection(spirv);
     nlohmann::json reflection = nlohmann::json::parse(compilerReflection.compile());
@@ -398,8 +427,7 @@ std::string exportFunction(const std::vector<uint32_t>& spirv, const std::string
         options.version = 200;
         compilerGLSL.set_common_options(options);
         shaderCode = compilerGLSL.compile();
-    }
-    else
+    } else
     {
         spirv_cross::CompilerHLSL compilerHLSL(spirv);
         spirv_cross::CompilerHLSL::Options options;
@@ -413,24 +441,24 @@ std::string exportFunction(const std::vector<uint32_t>& spirv, const std::string
     //find entry point
     std::string entryPointPrefix;
     if(outGLSL)
-        entryPointPrefix="void main()\n{";
+        entryPointPrefix = "void main()\n{";
     else
-        entryPointPrefix="void frag_main()\n{";
-    auto beginPos=shaderCode.find(entryPointPrefix);
+        entryPointPrefix = "void frag_main()\n{";
+    auto beginPos = shaderCode.find(entryPointPrefix);
     if(beginPos == std::string::npos)
     {
         throw std::runtime_error("Entry point not found!");
     }
 
-    auto endPos=beginPos+entryPointPrefix.size();
-    int bracketCount=1;
+    auto endPos = beginPos + entryPointPrefix.size();
+    int bracketCount = 1;
     for(; endPos < shaderCode.size(); endPos++)
     {
         if(shaderCode[endPos] == '{')
             bracketCount++;
         else if(shaderCode[endPos] == '}')
             bracketCount--;
-        if(bracketCount==0)
+        if(bracketCount == 0)
             break;
     }
     if(endPos == shaderCode.size())
@@ -438,34 +466,33 @@ std::string exportFunction(const std::vector<uint32_t>& spirv, const std::string
         throw std::runtime_error("Entry point not found!");
     }
 
-    beginPos+=entryPointPrefix.size();
-
+    beginPos += entryPointPrefix.size();
 
 
     //get constants
     std::string constPrefix;
     if(outGLSL)
-        constPrefix="const";
+        constPrefix = "const";
     else
-        constPrefix="static";
+        constPrefix = "static";
     std::string constants;
-    size_t i=0;
-    while((i=shaderCode.find(constPrefix, i)) != std::string::npos)
+    size_t i = 0;
+    while((i = shaderCode.find(constPrefix, i)) != std::string::npos)
     {
-        auto end=shaderCode.find(';', i);
+        auto end = shaderCode.find(';', i);
 
         //check if not constant
-        if(shaderCode.substr(i+constPrefix.size(), 6)!=" const")
+        if(shaderCode.substr(i + constPrefix.size(), 6) != " const")
         {
             auto lastSpace = shaderCode.rfind(' ', end);
             std::string varName = shaderCode.substr(lastSpace + 1, end - lastSpace - 1);
 
-            bool skip=false;
-            for (auto p:reflection["inputs"])//skip if input parameter
+            bool skip = false;
+            for(auto p: reflection["inputs"])//skip if input parameter
             {
-                if(p["name"].get<std::string>()==varName)
+                if(p["name"].get<std::string>() == varName)
                 {
-                    skip=true;
+                    skip = true;
                     break;
                 }
             }
@@ -474,10 +501,13 @@ std::string exportFunction(const std::vector<uint32_t>& spirv, const std::string
                 i = end;
                 continue;
             }
-            std::cout<<varName<<std::endl;
+            std::cout << varName << std::endl;
         }
-        constants+= "\n    " + shaderCode.substr(i, end - i + 1);
-        i=end;
+
+        std::string globalVar = shaderCode.substr(i, end - i + 1);
+        if(globalVar!="static float4 _entryPointOutput;")
+            constants += "\n    " + globalVar;
+        i = end;
     }
 
 
@@ -485,64 +515,71 @@ std::string exportFunction(const std::vector<uint32_t>& spirv, const std::string
     std::string entryPointOutput = "_entryPointOutput = ";
     funcBody.replace(funcBody.find(entryPointOutput), entryPointOutput.size(), "return ");
 
-    std::string type=reflection["outputs"][0]["type"].get<std::string>();
+    std::string type = reflection["outputs"][0]["type"].get<std::string>();
     if(!outGLSL)
-        type=glslToHlsl(type);
-    std::string funcHeader = type+" "+exportFuncName+"(";
+        type = glslToHlsl(type);
+    std::string funcHeader = type + " " + exportFuncName + "(";
 
-    for(auto& input: reflection["inputs"])
+    for(auto &input: reflection["inputs"])
     {
-        type=input["type"].get<std::string>();
+        type = input["type"].get<std::string>();
         if(!outGLSL)
-            type=glslToHlsl(type);
-        funcHeader+=type+" "+input["name"].get<std::string>()+",";
+            type = glslToHlsl(type);
+        funcHeader += type + " " + input["name"].get<std::string>() + ",";
     }
-    if(reflection["inputs"].size()>0)
+    if(reflection["inputs"].size() > 0)
         funcHeader.pop_back();
 
-    funcHeader+=")\n{";
 
-    if(!outGLSL)
-        funcBody="\n#define mod(a,b) (a-floor(a/b)*b)\n"+funcBody;
-
-    std::string func;
     if(onlyBody)
-        func = constants+funcBody;
+    {
+        funcHeader="//"+funcHeader+")\n";
+    }
     else
-        func = funcHeader + constants + funcBody + "}";
-
-//    //translate to HLSL
-//    std::string glslTemplate ="#version 450\n"+glslFunc+"\nvoid main(){}";
-//    auto spirvFromGlsl=vkbase::ShadersRC::compileShader(glslTemplate, "temp.frag");
-//    //convert to HLSL
-//    spirv_cross::CompilerHLSL compilerHLSL(spirvFromGlsl);
-//    auto codeHLSL = compilerHLSL.compile();
-//    std::cout << codeHLSL;
+    {
+        funcHeader += ")\n{";
+    }
 
 
-    return func;
+    std::string func= funcHeader + constants + funcBody;
+    if(!onlyBody)
+        func += "}";
+
+    //    //translate to HLSL
+    //    std::string glslTemplate ="#version 450\n"+glslFunc+"\nvoid main(){}";
+    //    auto spirvFromGlsl=vkbase::ShadersRC::compileShader(glslTemplate, "temp.frag");
+    //    //convert to HLSL
+    //    spirv_cross::CompilerHLSL compilerHLSL(spirvFromGlsl);
+    //    auto codeHLSL = compilerHLSL.compile();
+    //    std::cout << codeHLSL;
+
+    std::map<std::string , std::string> defines;
+    if(!outGLSL)
+        defines["mod(a,b)"]="(a-floor(a/b)*b)";
+
+    return vkbase::ShadersRC::preprocessShaderHLSL(func, "output.frag", vkbase::ShadersRC::ShaderType::Fragment, defines);
 }
 
 
 void ShaderModel::updateBin()
 {
-    if (currentCompiler && threadsCount < MAX_THREADS)
+    if(currentCompiler && threadsCount < MAX_THREADS)
     {
         ++threadsCount;
         int id = ++lastThreadID;
         std::thread([this, id]()
                     {
                         status = COMPILING;
-                        std::cout<<"+Compilation started:"<<name<<"("<<id<<")\n";
+                        std::cout << "+Compilation started:" << name << "(" << id << ")\n";
                         std::vector<uint32_t> bin;
                         std::vector<uint32_t> computeBin;
                         try
                         {
-                            currentCompiler->shaderName = name ;
+                            currentCompiler->shaderName = name;
                             bin = currentCompiler->compile();
-                            computeBin=currentCompiler->compileCompute();
+                            computeBin = currentCompiler->compileCompute();
                         }
-                        catch (const std::exception &e)
+                        catch(const std::exception &e)
                         {
                             shaderMutex.lock();
                             errorMessage = e.what();
@@ -552,20 +589,20 @@ void ShaderModel::updateBin()
                             return;
                         }
 
-                        std::cout<<"-Compilation finished:"<<name<<"("<<id<<")\n";
+                        std::cout << "-Compilation finished:" << name << "(" << id << ")\n";
                         if(id == lastThreadID)//update if thread is not canceled (only if last thread in queue, otherwise ignore)
                         {
                             spirv_cross::CompilerReflection compilerReflection(bin);
                             auto reflection = compilerReflection.compile();
-                           // std::cout<<reflection;
+                            // std::cout<<reflection;
 
                             try
                             {
                                 spirv_cross::CompilerReflection compilerComputeReflection(computeBin);
                                 auto reflectionC = compilerComputeReflection.compile();
-                               // std::cout << reflectionC;
+                                // std::cout << reflectionC;
                             }
-                            catch (const std::exception &e)
+                            catch(const std::exception &e)
                             {
                                 errorMessage = e.what();
                                 status = ERROR;
@@ -574,21 +611,21 @@ void ShaderModel::updateBin()
                             }
 
 
-
                             shaderMutex.lock();
-                            newUniformParametersReflection=reflection;
+                            newUniformParametersReflection = reflection;
                             shaderBin = std::move(bin);
-                            computeShaderBin=std::move(computeBin);
+                            computeShaderBin = std::move(computeBin);
                             isChanged = true;
                             status = COMPILED;
-                            errorMessage="";
+                            errorMessage = "";
                             shaderMutex.unlock();
-                            std::cout<<"=Binary code updated:"<<name<<"("<<id<<")\n";
+                            std::cout << "=Binary code updated:" << name << "(" << id << ")\n";
                         }
                         --threadsCount;
                     }).detach();
     }
 }
+
 
 [[maybe_unused]] void ShaderModel::updateTranslation(AbstractShaderCompiler *compiler)
 {
@@ -597,9 +634,9 @@ void ShaderModel::updateBin()
 
 AbstractShaderCompiler *ShaderModel::getCompilerByLanguage(const std::string &languageName)
 {
-    for(auto& compiler: compilers)
+    for(auto &compiler: compilers)
     {
-        if(compiler->languageName==languageName)
+        if(compiler->languageName == languageName)
             return compiler.get();
     }
     return nullptr;
@@ -611,21 +648,20 @@ void ShaderModel::setCurrentCompiler(const std::string &languageName)
 }
 
 
-
 nlohmann::json ShaderModel::toJson()
 {
     nlohmann::json json;
     json["name"] = name;
     json["compilers"] = nlohmann::json::array();
-    for(auto& compiler: compilers)
+    for(auto &compiler: compilers)
     {
         nlohmann::json compilerJson;
         compilerJson["shaderName"] = compiler->shaderName;
         compilerJson["languageName"] = compiler->languageName;
         compilerJson["source"] = compiler->getSource();
-        compilerJson["isCurrent"] = compiler.get()==currentCompiler;
+        compilerJson["isCurrent"] = compiler.get() == currentCompiler;
         json["compilers"].push_back(compilerJson);
-        json["parameters"]=uniformParameters.serialize();
+        json["parameters"] = uniformParameters.serialize();
     }
     return json;
 }
@@ -637,22 +673,22 @@ void ShaderModel::loadFromJson(const nlohmann::json &json)
     compilers.reserve(json["compilers"].size());
     currentCompiler = nullptr;
 
-    for(auto& compilerJson: json["compilers"])
+    for(auto &compilerJson: json["compilers"])
     {
         std::string shaderName = compilerJson["shaderName"];
         std::string languageName = compilerJson["languageName"];
         std::string source = compilerJson["source"];
-        if(languageName!="HLSL")
+        if(languageName != "HLSL")
             continue;
 
-        if(languageName=="GLSL")
+        if(languageName == "GLSL")
             compilers.emplace_back(new GLSLCompiler());
-        else if(languageName=="HLSL")
+        else if(languageName == "HLSL")
             compilers.emplace_back(new HLSLCompiler());
-        else if(languageName=="SPIRV")
+        else if(languageName == "SPIRV")
             compilers.emplace_back(new SPIRVCompiler());
         else
-            throw std::runtime_error("Unknown shader language: "+languageName);
+            throw std::runtime_error("Unknown shader language: " + languageName);
 
         if(compilerJson["isCurrent"])
             currentCompiler = compilers.back().get();
@@ -662,17 +698,17 @@ void ShaderModel::loadFromJson(const nlohmann::json &json)
         if(!currentCompiler)
             currentCompiler = compilers.back().get();
         if(json.contains("parameters"))
-            uniformParameters.deserialize( json["parameters"]);
+            uniformParameters.deserialize(json["parameters"]);
     }
-    recomplile=true;
+    recomplile = true;
 }
 
 void ShaderModel::setViewArea(glm::vec4 newArea)
 {
-    if(newArea!=viewArea)
+    if(newArea != viewArea)
     {
         viewArea = newArea;
-        updateBuffers= true;
+        updateBuffers = true;
     }
 }
 
@@ -688,19 +724,18 @@ const glm::vec4 &ShaderModel::getViewArea()
 
 void ShaderModel::setActive(bool active)
 {
-    if(active&&writeMainBufferCallbackId==-1)
+    if(active && writeMainBufferCallbackId == -1)
     {
         writeMainBufferCallbackId = vkbase::addWriteMainBufferCallback(WRAP_MEMBER_FUNC(writeCommandBuffer));
-        prepareCallbackId= vkbase::addDrawPrepareCallback(WRAP_MEMBER_FUNC(prepare));
+        prepareCallbackId = vkbase::addDrawPrepareCallback(WRAP_MEMBER_FUNC(prepare));
         vkbase::OnDataUpdateReceiver::enable();
-    }
-    else if(!active&&writeMainBufferCallbackId!=-1)
+    } else if(!active && writeMainBufferCallbackId != -1)
     {
         vkbase::removeWriteMainBufferCallback(writeMainBufferCallbackId);
         vkbase::removeDrawPrepareCallback(prepareCallbackId);
         vkbase::OnDataUpdateReceiver::disable();
-        writeMainBufferCallbackId=-1;
-        prepareCallbackId=-1;
+        writeMainBufferCallbackId = -1;
+        prepareCallbackId = -1;
     }
 }
 
@@ -722,7 +757,7 @@ void ShaderModel::createDescriptorSetLayout()
     layoutInfo.bindingCount = 1;
     layoutInfo.pBindings = &uboLayoutBinding;
 
-    if (vkCreateDescriptorSetLayout(vkbase::device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS)
+    if(vkCreateDescriptorSetLayout(vkbase::device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create descriptor set layout!");
     }
@@ -745,7 +780,7 @@ void ShaderModel::createDescriptorSetLayout()
     computeLayoutInfo.bindingCount = std::size(computeLayoutBindings);
     computeLayoutInfo.pBindings = computeLayoutBindings;
 
-    if (vkCreateDescriptorSetLayout(vkbase::device, &computeLayoutInfo, nullptr, &computeDescriptorSetLayout) != VK_SUCCESS)
+    if(vkCreateDescriptorSetLayout(vkbase::device, &computeLayoutInfo, nullptr, &computeDescriptorSetLayout) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create descriptor set layout for compute pipeline!");
     }
@@ -756,10 +791,10 @@ void ShaderModel::createDescriptorPool()
     VkDescriptorPoolSize poolSizes[3]{};
     //graphics pipeline
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSizes[0].descriptorCount =1;
+    poolSizes[0].descriptorCount = 1;
     //compute pipeline
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    poolSizes[1].descriptorCount = 1+vkbase::imageCount+10;
+    poolSizes[1].descriptorCount = 1 + vkbase::imageCount + 10;
     //
     poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSizes[2].descriptorCount = 1;
@@ -769,9 +804,9 @@ void ShaderModel::createDescriptorPool()
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = std::size(poolSizes);
     poolInfo.pPoolSizes = poolSizes;
-    poolInfo.maxSets = static_cast<uint32_t>(vkbase::imageCount+1+1);
+    poolInfo.maxSets = static_cast<uint32_t>(vkbase::imageCount + 1 + 1);
 
-    if (vkCreateDescriptorPool(vkbase::device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS)
+    if(vkCreateDescriptorPool(vkbase::device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create descriptor pool!");
     }
@@ -781,11 +816,11 @@ void ShaderModel::createUniformBuffer()
 {
     uniformBuffers.resize(vkbase::imageCount);
 
-    for(auto& b : uniformBuffers)
+    for(auto &b: uniformBuffers)
         b.create(8, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-    parametersIntermediateBuffer.create(8, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+    parametersIntermediateBuffer.create(8, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                                         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
 
@@ -873,8 +908,8 @@ void ShaderModel::createDescriptorSets()
 
     //allocate an array of descriptor sets
     //the descriptor sets will be automatically freed with descriptor pool
-    if (vkAllocateDescriptorSets(vkbase::device, &allocInfo,
-                                 descriptorSets.data()) != VK_SUCCESS)
+    if(vkAllocateDescriptorSets(vkbase::device, &allocInfo,
+                                descriptorSets.data()) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to allocate descriptor sets!");
     }
@@ -886,15 +921,15 @@ void ShaderModel::createDescriptorSets()
     comp_allocInfo.descriptorSetCount = 1;
     comp_allocInfo.pSetLayouts = &computeDescriptorSetLayout;
 
-    if (vkAllocateDescriptorSets(vkbase::device, &comp_allocInfo,
-                                 &computeDescriptorSets) != VK_SUCCESS)
+    if(vkAllocateDescriptorSets(vkbase::device, &comp_allocInfo,
+                                &computeDescriptorSets) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to allocate descriptor sets for compute pipeline!");
     }
 
 
     //update all descriptor sets
-    for (size_t i = 0; i < vkbase::imageCount; ++i)
+    for(size_t i = 0; i < vkbase::imageCount; ++i)
     {
         updateDescriptorSet(i);
     }
@@ -915,27 +950,28 @@ void ShaderModel::createRenderBuffers()
     VK_COMMAND_BUFFER_LEVEL_SECONDARY: Cannot be submitted directly, but can be called from the primary command buffers.*/
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY;
     //number of command buffers to allocate
-    allocInfo.commandBufferCount = (uint32_t)cbRender.size();
+    allocInfo.commandBufferCount = (uint32_t) cbRender.size();
 
     //create command buffers
-    if (vkAllocateCommandBuffers(vkbase::device, &allocInfo, cbRender.data()) != VK_SUCCESS) {
+    if(vkAllocateCommandBuffers(vkbase::device, &allocInfo, cbRender.data()) != VK_SUCCESS)
+    {
         throw std::runtime_error("failed to allocate command buffers!");
     }
 
-//    for (size_t i = 0; i < cbRender.size(); i++)
-//    {
-//        //create empty command buffers
-//        VkCommandBufferBeginInfo beginInfo{};
-//        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-//        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
-//        auto inheritanceInfo =vkbase::createMainBufferInheritanceInfo(i);
-//        beginInfo.pInheritanceInfo = &inheritanceInfo;
-//
-//        if (vkBeginCommandBuffer(cbRender[i], &beginInfo) != VK_SUCCESS)
-//            throw std::runtime_error("failed to begin recording command buffer!");
-//
-//        vkEndCommandBuffer(cbRender[i]);
-//    }
+    //    for (size_t i = 0; i < cbRender.size(); i++)
+    //    {
+    //        //create empty command buffers
+    //        VkCommandBufferBeginInfo beginInfo{};
+    //        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    //        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
+    //        auto inheritanceInfo =vkbase::createMainBufferInheritanceInfo(i);
+    //        beginInfo.pInheritanceInfo = &inheritanceInfo;
+    //
+    //        if (vkBeginCommandBuffer(cbRender[i], &beginInfo) != VK_SUCCESS)
+    //            throw std::runtime_error("failed to begin recording command buffer!");
+    //
+    //        vkEndCommandBuffer(cbRender[i]);
+    //    }
 }
 
 void ShaderModel::createComputeCommandBuffer()
@@ -946,7 +982,7 @@ void ShaderModel::createComputeCommandBuffer()
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     allocInfo.commandBufferCount = 1;
 
-    if (vkAllocateCommandBuffers(vkbase::device, &allocInfo, &cbCompute) != VK_SUCCESS)
+    if(vkAllocateCommandBuffers(vkbase::device, &allocInfo, &cbCompute) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to allocate command buffers!");
     }
@@ -955,7 +991,7 @@ void ShaderModel::createComputeCommandBuffer()
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = 0;
 
-    if (vkBeginCommandBuffer(cbCompute, &beginInfo) != VK_SUCCESS)
+    if(vkBeginCommandBuffer(cbCompute, &beginInfo) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to begin recording compute command buffer!");
     }
@@ -965,7 +1001,7 @@ void ShaderModel::createComputeCommandBuffer()
 void ShaderModel::rewriteRenderBuffer(int i)
 {
     VkCommandBuffer cb = cbRender[i];
-    VkCommandBufferInheritanceInfo inheritanceInfo= vkbase::createMainBufferInheritanceInfo(i);
+    VkCommandBufferInheritanceInfo inheritanceInfo = vkbase::createMainBufferInheritanceInfo(i);
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -976,7 +1012,8 @@ void ShaderModel::rewriteRenderBuffer(int i)
     // for secondary buffer only (indicates which state to inherit from calling primary command buffer)
     beginInfo.pInheritanceInfo = &inheritanceInfo; // Optional
 
-    if (vkBeginCommandBuffer(cb, &beginInfo) != VK_SUCCESS) {
+    if(vkBeginCommandBuffer(cb, &beginInfo) != VK_SUCCESS)
+    {
         throw std::runtime_error("failed to begin recording command buffer!");
     }
 
@@ -984,16 +1021,16 @@ void ShaderModel::rewriteRenderBuffer(int i)
     {
         //render area(pipeline uses dynamic state)
         VkViewport viewport{};
-        viewport.x = viewArea.x*static_cast<float>(vkbase::extent.width);
-        viewport.y = viewArea.y*static_cast<float>(vkbase::extent.height);
-        viewport.width = static_cast<float>(vkbase::extent.width)*viewArea.z;
-        viewport.height = static_cast<float>(vkbase::extent.height)*viewArea.w;
+        viewport.x = viewArea.x * static_cast<float>(vkbase::extent.width);
+        viewport.y = viewArea.y * static_cast<float>(vkbase::extent.height);
+        viewport.width = static_cast<float>(vkbase::extent.width) * viewArea.z;
+        viewport.height = static_cast<float>(vkbase::extent.height) * viewArea.w;
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
         vkCmdSetViewport(cb, 0, 1, &viewport);
         //scissor rectangle
         VkRect2D scissor{};
-        scissor.offset = { 0, 0 };
+        scissor.offset = {0, 0};
         scissor.extent = vkbase::extent;
         vkCmdSetScissor(cb, 0, 1, &scissor);
         //bind descriptor set
@@ -1014,7 +1051,7 @@ void ShaderModel::rewriteComputeBuffer()
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = 0;
 
-    if (vkBeginCommandBuffer(cbCompute, &beginInfo) != VK_SUCCESS)
+    if(vkBeginCommandBuffer(cbCompute, &beginInfo) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to begin recording command buffer!");
     }
@@ -1034,7 +1071,7 @@ void ShaderModel::createComputeFence()
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = 0;
 
-    if (vkCreateFence(vkbase::device, &fenceInfo, nullptr, &computeFence) != VK_SUCCESS)
+    if(vkCreateFence(vkbase::device, &fenceInfo, nullptr, &computeFence) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create fence!");
     }
@@ -1073,7 +1110,7 @@ void ShaderModel::rewriteAllCommandBuffers()
     {
         vkDeviceWaitIdle(vkbase::device);
         vkResetCommandPool(vkbase::device, commandPool, 0);
-        for (int i = 0; i < cbRender.size(); i++)
+        for(int i = 0; i < cbRender.size(); i++)
         {
             rewriteRenderBuffer(i);
         }
@@ -1095,16 +1132,16 @@ void ShaderModel::createPipelineLayout()
     pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
     pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
-    if (vkCreatePipelineLayout(vkbase::device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
+    if(vkCreatePipelineLayout(vkbase::device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create pipeline layout!");
     }
 
     //--COMPUTE PIPELINE LAYOUT--//
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
-    pipelineLayoutCreateInfo.sType=VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutCreateInfo.setLayoutCount=1;
-    pipelineLayoutCreateInfo.pSetLayouts=&computeDescriptorSetLayout;
+    pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutCreateInfo.setLayoutCount = 1;
+    pipelineLayoutCreateInfo.pSetLayouts = &computeDescriptorSetLayout;
     vkCreatePipelineLayout(vkbase::device, &pipelineLayoutCreateInfo, nullptr, &computePipelineLayout);
 
 }
@@ -1122,7 +1159,7 @@ void ShaderModel::createCommandPool()
     poolInfo.flags = 0;
 
     //create poll (command poll will be destroyed in cleanup function)
-    if (vkCreateCommandPool(vkbase::device, &poolInfo, nullptr, &commandPool/*out handle*/) != VK_SUCCESS)
+    if(vkCreateCommandPool(vkbase::device, &poolInfo, nullptr, &commandPool/*out handle*/) != VK_SUCCESS)
         throw std::runtime_error("Failed to create command pool!");
 }
 
@@ -1225,9 +1262,9 @@ void ShaderModel::createGraphicsPipeline(const std::vector<uint32_t> &frag_shade
 
 
     //--DYNAMIC STATES--//
-    VkDynamicState dynamicStates[] = {VK_DYNAMIC_STATE_VIEWPORT,VK_DYNAMIC_STATE_SCISSOR};
+    VkDynamicState dynamicStates[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
     VkPipelineDynamicStateCreateInfo dynamicState{};
-    dynamicState.sType= VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
     dynamicState.dynamicStateCount = std::size(dynamicStates);
     dynamicState.pDynamicStates = dynamicStates;
 
@@ -1262,12 +1299,12 @@ void ShaderModel::createGraphicsPipeline(const std::vector<uint32_t> &frag_shade
 
     VkPipeline newPipeline;
     //CREATE PIPELINE
-    if (vkCreateGraphicsPipelines(vkbase::device,
-                                  VK_NULL_HANDLE,//cache
-                                  1,//count
-                                  &pipelineInfo,
-                                  nullptr,
-                                  &newPipeline) != VK_SUCCESS)
+    if(vkCreateGraphicsPipelines(vkbase::device,
+                                 VK_NULL_HANDLE,//cache
+                                 1,//count
+                                 &pipelineInfo,
+                                 nullptr,
+                                 &newPipeline) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create graphics pipeline!");
     }
@@ -1291,17 +1328,17 @@ void ShaderModel::createComputePipeline(const std::vector<uint32_t> &comp_shader
     pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
     pipelineInfo.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     pipelineInfo.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-    pipelineInfo.stage.module =  vkbase::createShaderModule(comp_shader);
+    pipelineInfo.stage.module = vkbase::createShaderModule(comp_shader);
     pipelineInfo.stage.pName = "___update___";
-    pipelineInfo.layout=computePipelineLayout;
-    pipelineInfo.flags=0;
+    pipelineInfo.layout = computePipelineLayout;
+    pipelineInfo.flags = 0;
 
     if(computePipeline)
     {
         vkDestroyPipeline(vkbase::device, computePipeline, nullptr);
     }
 
-    if(vkCreateComputePipelines(vkbase::device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &computePipeline)!=VK_SUCCESS)
+    if(vkCreateComputePipelines(vkbase::device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &computePipeline) != VK_SUCCESS)
         throw std::runtime_error("Failed to create compute pipeline ");
 
     //destroy shader module
@@ -1310,7 +1347,7 @@ void ShaderModel::createComputePipeline(const std::vector<uint32_t> &comp_shader
 
 void ShaderModel::onSurfaceChanged()
 {
-    updateBuffers=true;
+    updateBuffers = true;
 }
 
 void ShaderModel::prepare([[maybe_unused]] uint32_t image_index)
@@ -1320,13 +1357,13 @@ void ShaderModel::prepare([[maybe_unused]] uint32_t image_index)
     if(recomplile)
     {
         updateBin();
-        recomplile=false;
+        recomplile = false;
     }
 
     if(updateBuffers)
     {
         rewriteAllCommandBuffers();
-        updateBuffers=false;
+        updateBuffers = false;
     }
 
     submitComputeBuffer();
@@ -1353,19 +1390,19 @@ void ShaderModel::syncShaderCode()
         if(!shaderBin.empty())
         {
             //update parameters
-            uniformParameters= UniformParameters(uniformParameters,newUniformParametersReflection);
+            uniformParameters = UniformParameters(uniformParameters, newUniformParametersReflection);
 
             vkDeviceWaitIdle(vkbase::device);
 
             //update buffers and descriptors
-            if(uniformParameters.size>uniformBuffers[0].info.size)
-                for(int i=0;i<vkbase::imageCount;++i)
+            if(uniformParameters.size > uniformBuffers[0].info.size)
+                for(int i = 0; i < vkbase::imageCount; ++i)
                 {
-                    if(uniformBuffers[i].info.size<uniformParameters.size)
+                    if(uniformBuffers[i].info.size < uniformParameters.size)
                     {
                         uniformBuffers[i].create(uniformParameters.size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
                                                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-                        parametersIntermediateBuffer.create(uniformParameters.size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                        parametersIntermediateBuffer.create(uniformParameters.size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                                                             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
                         updateDescriptorSet(i);
                         updateComputeDescriptorSet();
@@ -1376,7 +1413,7 @@ void ShaderModel::syncShaderCode()
             createGraphicsPipeline(shaderBin);
             createComputePipeline(computeShaderBin);
 
-            updateBuffers=true;
+            updateBuffers = true;
             isChanged = false;
 
         }
@@ -1386,7 +1423,7 @@ void ShaderModel::syncShaderCode()
 
 void ShaderModel::updateUniform(uint32_t imageIndex)
 {
-    std::vector<char> params=uniformParameters.buildBuffer();
+    std::vector<char> params = uniformParameters.buildBuffer();
     memcpy(uniformBuffers[imageIndex].map(), params.data(), params.size());
     uniformBuffers[imageIndex].unmap();
 }
@@ -1395,7 +1432,7 @@ void ShaderModel::destroy()
 {
     setActive(false);
     vkDeviceWaitIdle(vkbase::device);
-    for(auto& b:uniformBuffers)
+    for(auto &b: uniformBuffers)
         b.destroy();
 
     vkDestroyDescriptorSetLayout(vkbase::device, descriptorSetLayout, nullptr);
@@ -1418,20 +1455,20 @@ ShaderModel::~ShaderModel()
     destroy();
 }
 
-std::string ShaderModel::exportOutput(const std::string& funcName, const std::string& language,bool onlyBody)
+std::string ShaderModel::exportOutput(const std::string &funcName, const std::string &language, bool onlyBody)
 {
-    if(language=="GLSL")
-        return exportFunction(currentCompiler->compileForExport(uniformParameters.initStructureString("p")),funcName,onlyBody, true);
-    else if(language=="HLSL")
-        return exportFunction(currentCompiler->compileForExport(uniformParameters.initStructureString("p")),funcName,onlyBody, false);
+    if(language == "GLSL")
+        return exportFunction(currentCompiler->compileForExport("output", uniformParameters.dynamicParametersString(), uniformParameters.initStructureString("p")), funcName, onlyBody, true);
+    else if(language == "HLSL")
+        return exportFunction(currentCompiler->compileForExport("output", uniformParameters.dynamicParametersString(), uniformParameters.initStructureString("p")), funcName, onlyBody, false);
     else
-        return "Unknown language: "+language;
+        return "Unknown language: " + language;
 }
 
-void ShaderModel::generateBitmap(int width, int height, const std::string& functionName, const std::string &functionCall, VkDescriptorSetLayout descriptorSetLayout)
+void ShaderModel::generateBitmap(int width, int height, const std::string &functionName, const std::string &functionCall, VkDescriptorSetLayout descriptorSetLayout)
 {
     auto hlslExportFunction = exportOutput(functionName, "HLSL", false);
-    bitmapGenerator.generateBitmap(hlslExportFunction,functionCall, width, height,descriptorPool,descriptorSetLayout);
+    bitmapGenerator.generateBitmap(hlslExportFunction, functionCall, width, height, descriptorPool, descriptorSetLayout);
 }
 
 VkDescriptorSet ShaderModel::getBitmapDescriptorSet()
@@ -1446,7 +1483,7 @@ std::vector<uint32_t> ShaderModel::getBitmap()
 
 glm::vec2 ShaderModel::getBitmapSize()
 {
-    return {bitmapGenerator.getWidth(),bitmapGenerator.getHeight()};
+    return {bitmapGenerator.getWidth(), bitmapGenerator.getHeight()};
 }
 
 const BitmapGenerator &ShaderModel::getBitmapGenerator()

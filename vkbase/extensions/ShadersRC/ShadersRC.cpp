@@ -9,6 +9,8 @@
 
 namespace vkbase::ShadersRC
 {
+
+
     VkShaderModule loadSourceShader(const std::string &filename, bool save)
     {
         //std::vector<char> code=sys::load_file((filename).c_str());
@@ -173,5 +175,56 @@ namespace vkbase::ShadersRC
         //get compiled code as uint32_t vector
         return std::string{result.begin(),result.end()};
     }
+
+    std::string
+        preprocessShaderHLSL(const std::string &source, const std::string &fileName, ShaderType type, const std::map<std::string, std::string> &defines)
+    {
+        shaderc::Compiler compiler;
+        shaderc::CompileOptions options;
+
+        shaderc_shader_kind kind;
+        switch (type)
+        {
+            case ShaderType::Vertex:
+                kind = shaderc_glsl_vertex_shader;
+            break;
+            case ShaderType::Fragment:
+                kind = shaderc_glsl_fragment_shader;
+            break;
+            case ShaderType::Compute:
+                kind = shaderc_glsl_compute_shader;
+            break;
+            case ShaderType::Geometry:
+                kind = shaderc_glsl_geometry_shader;
+            break;
+            case ShaderType::TessControl:
+                kind = shaderc_glsl_tess_control_shader;
+            break;
+            case ShaderType::TessEvaluation:
+                kind = shaderc_glsl_tess_evaluation_shader;
+            break;
+            default:
+                throw std::runtime_error("Unknown shader type");
+        }
+
+        options.SetSourceLanguage(shaderc_source_language_hlsl);
+        options.SetOptimizationLevel(shaderc_optimization_level_zero);
+        //options.SetTargetEnvironment(shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_2);
+        options.SetPreserveBindings(true);
+
+        for(const auto& [name,val]:defines)
+        {
+            options.AddMacroDefinition(name,val);
+        }
+
+        auto module = compiler.PreprocessGlsl(source, kind, fileName.c_str(), options);
+
+        if ( module.GetCompilationStatus() != shaderc_compilation_status_success ) {
+            throw std::runtime_error(module.GetErrorMessage());
+        }
+
+        return std::string{module.cbegin(),module.cend()};
+    }
+
 }
 

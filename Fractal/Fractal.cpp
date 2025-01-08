@@ -394,7 +394,6 @@ void Fractal::processInput()
         float relativePosY=+io.MousePos.y- ImGui::GetWindowViewport()->Pos.y;
 
 
-
         if(p.contains("mouse_pos")&&p["mouse_pos"].type=="vec2")
             p["mouse_pos"].get<glm::vec2>()=glm::vec2(relativePosX,relativePosY);
         if(p.contains("mouse_delta")&&p["mouse_delta"].type=="vec2")
@@ -478,6 +477,27 @@ void Fractal::parametersUi(bool *showParameters)
 
             for(auto&[off,p]: sortedParameters)
             {
+                if(p->isDynamic)
+                    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0.4,0.3));
+                else
+                    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
+                if(ImGui::Button((std::string(p->isDynamic ? "D" : "S") + "###" + p->name).c_str()))
+                {
+                    p->isDynamic=!p->isDynamic;
+                }
+                ImGui::PopStyleColor();
+                if(ImGui::IsItemHovered())
+                {
+                    ImGui::BeginTooltip();
+                    if(p->isDynamic)
+                        ImGui::Text("Dynamic parameter. This parameter will be exported as function argument");
+                    else
+                        ImGui::Text("Static parameter. This parameter will be replaced with constant in exported function");
+                    ImGui::EndTooltip();
+                }
+
+                ImGui::SameLine();
+
                 const char* floatFormat="%.5f";
                 const std::string& name=p->name;
                 if(p->type=="int")

@@ -16,6 +16,7 @@
 #include "../External/json.hpp"
 #include "BitmapGenerator.hpp"
 
+std::string glslToHlsl(const std::string &glslT);
 
 class UniformParameter
 {
@@ -24,6 +25,7 @@ public:
     std::string type;
     int offset=0;
     std::vector<char> data;
+    bool isDynamic = false;
     nlohmann::json metadata;
 
     template<typename T>
@@ -54,9 +56,10 @@ public:
     nlohmann::json serialize();
     void deserialize(nlohmann::json j);
     std::string initStructureString(const std::string& varName);
+    std::string dynamicParametersString();
 };
 
-std::string exportHLSL(std::vector<uint32_t> spirv);
+
 
 class ShaderModel: public vkbase::OnDataUpdateReceiver,public vkbase::OnSurfaceChangedReceiver
 {

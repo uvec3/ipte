@@ -4,11 +4,8 @@
 #include <map>
 #include <vulkan/vulkan.h>
 
-namespace vkbase::ShadersRC
-{
-
-    enum class ShaderType
-    {
+namespace vkbase::ShadersRC {
+    enum class ShaderType {
         Vertex,
         Fragment,
         Compute,
@@ -22,7 +19,9 @@ namespace vkbase::ShadersRC
 
 
     [[maybe_unused]] std::vector<uint32_t>
-    compileShaderHLSL(const std::string &source, const std::string &fileName, ShaderType type, const ::std::string &entryPoint, const std::map<std::string, std::string> &defines, bool glsl= false);
+    compileShaderHLSL(const std::string &source, const std::string &fileName, ShaderType type,
+                      const ::std::string &entryPoint, const std::map<std::string, std::string> &defines,
+                      bool glsl = false);
 
     [[maybe_unused]] std::string compileShaderAsm(const std::string &source, const std::string &fileName);
 
@@ -32,4 +31,7 @@ namespace vkbase::ShadersRC
     //try find compiled shader file, if not found - compile it from source
     [[maybe_unused]] VkShaderModule loadShader(const std::string &filename);
 
+    [[maybe_unused]] std::string
+    preprocessShaderHLSL(const std::string &source, const std::string &fileName, ShaderType type,
+                         const std::map<std::string, std::string> &defines);
 }

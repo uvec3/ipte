@@ -81,7 +81,6 @@ public:
 template<typename T>
 class AutoParallelTaskManager:public ParallelTaskManager<T>, public vkbase::OnLogicUpdateReceiver
 {
-
 public:
     explicit AutoParallelTaskManager(int maxThreads=1, int acceptThreads=1, int priority=0):ParallelTaskManager<T>(maxThreads,acceptThreads)
     {

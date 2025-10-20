@@ -749,13 +749,11 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** args)
         //load cache data
         loadAll();
 
-
-
         //register ui function
         vkbase::imgui::addOnUiCallback(ui);
 
-
         vkbase::sys::fullscreen(show.fullscreen);
+
         //main loop
         while (vkbase::handleEvents()&&!exitFlag)
         {
@@ -763,7 +761,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** args)
             openFractal();
             autoSave();
             vkbase::drawFrame();
-
         }
 
         //cleanup
@@ -775,6 +772,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** args)
 
         NFD_Quit();//native file dialog quit
         //free engine resources
+
         vkbase::destroy();
     }
     catch (const std::exception &e)

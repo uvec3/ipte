@@ -49,7 +49,7 @@ void initTemplates()
     }
 }
 
-int getIndexOfFractal(Fractal* fractal)
+int getIndexOfFractal(const Fractal* fractal)
 {
     for(int i = 0; i < fractals.size(); ++i)
     {
@@ -191,6 +191,8 @@ void saveAll()
     j["font_size"]=vkbase::imgui::getFontSize();
     j["show"]=std::vector<char>(reinterpret_cast<char*>(&show),reinterpret_cast<char*>(&show)+sizeof(show));
     j["imgui"]=  ImGui::SaveIniSettingsToMemory();
+    j["window_width"] = vkbase::sys::getWidth();
+    j["window_height"] = vkbase::sys::getHeight();
 
     std::ofstream file("cache.json");
     file<<j.dump(4);
@@ -246,9 +248,57 @@ bool loadFractal(const nlohmann::json &j)
     return true;
 }
 
-void loadAll()
+void init_data(nlohmann::json j)
 {
+    if(j.contains("show"))
+        show = *reinterpret_cast<Show*>(j["show"].get<std::vector<char>>().data());
+    if(j.contains("font_size"))
+        vkbase::imgui::setFontSize(j["font_size"].get<float>());
+    if(j.contains("imgui"))
+    {
+        auto data = j["imgui"].get<std::string>();
+        ImGui::LoadIniSettingsFromMemory(data.c_str() , data.size());
+    }
+    cacheData=j["cache"];
+
+
     int activeTabIndex = -1;
+    for(auto& f:j["opened"])
+    {
+        if(f.contains("path"))
+        {
+            if(!loadFractalFromFile(f["path"]))
+                continue;
+        }
+        else if(f.contains("unsaved"))
+        {
+            if(!loadFractal(j["unsaved"][f["unsaved"]]))
+                continue;
+        }
+        if(f.contains("mirror"))
+        {
+            if(!f["mirror"].get<std::string >().empty())
+                fractals.back()->mirrorToFile(f["mirror"]);
+        }
+        if(f.contains("active")&&f["active"])
+        {
+            activeTabIndex = static_cast<int>(fractals.size()-1);
+        }
+    }
+
+    lastTabs.clear();
+    for(auto& fractal:fractals)
+    {
+        lastTabs.push_back(fractal);
+    }
+    if(activeTabIndex!=-1)
+    {
+        switchToTab = activeTabIndex;
+    }
+}
+
+nlohmann::json load_json()
+{
     try
     {
         std::ifstream file("cache.json");
@@ -259,51 +309,12 @@ void loadAll()
             j=nlohmann::json::parse(vkbase::assets["other/cache.json"]);
         file.close();
 
-        for(auto& f:j["opened"])
-        {
-            if(f.contains("path"))
-            {
-                if(!loadFractalFromFile(f["path"]))
-                    continue;
-            }
-            else if(f.contains("unsaved"))
-            {
-                if(!loadFractal(j["unsaved"][f["unsaved"]]))
-                    continue;
-            }
-            if(f.contains("mirror"))
-            {
-                if(!f["mirror"].get<std::string >().empty())
-                    fractals.back()->mirrorToFile(f["mirror"]);
-            }
-            if(f.contains("active")&&f["active"])
-            {
-                activeTabIndex = static_cast<int>(fractals.size()-1);
-            }
-        }
-        lastTabs.clear();
-        for(auto& fractal:fractals)
-        {
-            lastTabs.push_back(fractal);
-        }
-        if(activeTabIndex!=-1)
-        {
-            switchToTab = activeTabIndex;
-        }
-        if(j.contains("show"))
-            show = *reinterpret_cast<Show*>(j["show"].get<std::vector<char>>().data());
-        if(j.contains("font_size"))
-            vkbase::imgui::setFontSize(j["font_size"].get<float>());
-        if(j.contains("imgui"))
-        {
-            auto data = j["imgui"].get<std::string>();
-            ImGui::LoadIniSettingsFromMemory(data.c_str() , data.size());
-        }
-        cacheData=j["cache"];
+        return j;
     }
     catch(const std::exception &e)
     {
         std::cout << "Error while loading cache data: " + std::string(e.what());
+        return nlohmann::json();
     }
 }
 
@@ -340,7 +351,6 @@ void closeFractal(int fractalToClose)
     if(activeFractalIndex>=fractals.size())
         activeFractalIndex=static_cast<int>(fractals.size()-1) ;
 }
-
 
 
 void drawMenuBarUI()
@@ -606,7 +616,6 @@ void ui()
 {
     drawMenuBarUI();
 
-
     if(!show.any)
     {
         if(switchToTab>=0)//perform switch to tab even if UI is hidden
@@ -710,7 +719,7 @@ void openFractal()
                     return;
                 }
             }
-            catch(const std::exception &e){}
+            catch(const std::exception){}
         }
 
         loadFractalFromFile(pathToOpen);
@@ -735,6 +744,17 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** args)
 {
     try
     {
+        //load cached data
+        const auto json=load_json();
+
+        //set window size before initializing context
+        if (json.contains("window_width")&&json.contains("window_height"))
+        {
+            auto w=json["window_width"].get<int>();
+            auto h=json["window_height"].get<int>();
+            vkbase::sys::setWindowSize(w,h);
+        }
+
         vkbase::init("IPTE");//init engine
 
         vkbase::imgui::initIMGUI();//init imgui
@@ -746,8 +766,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** args)
         vkbase::imgui::setFontSize(16);
         ImGui::GetIO().IniFilename = nullptr;
 
-        //load cache data
-        loadAll();
+        //load fractal data from json
+        init_data(json);
 
         //register ui function
         vkbase::imgui::addOnUiCallback(ui);

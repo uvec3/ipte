@@ -6,27 +6,25 @@
 #include <vulkan/vulkan.h>
 #include <SDL.h>
 
-
-
 #if ANDROID
-#include <android/log.h>
-#define LOGI(...) \
-        ((void)__android_log_print(ANDROID_LOG_INFO, "threaded_app", __VA_ARGS__))
-#define LOGE(...) \
-        ((void)__android_log_print(ANDROID_LOG_ERROR, "threaded_app", __VA_ARGS__))
-#define LOGW(...) \
-        ((void)__android_log_print(ANDROID_LOG_WARN, "threaded_app", __VA_ARGS__))
+    #include <android/log.h>
+    #define LOGI(...) \
+            ((void)__android_log_print(ANDROID_LOG_INFO, "threaded_app", __VA_ARGS__))
+    #define LOGE(...) \
+            ((void)__android_log_print(ANDROID_LOG_ERROR, "threaded_app", __VA_ARGS__))
+    #define LOGW(...) \
+            ((void)__android_log_print(ANDROID_LOG_WARN, "threaded_app", __VA_ARGS__))
 #else
 
-#include <cstdio>
-#include <stdexcept>
+    #include <cstdio>
+    #include <stdexcept>
 
-#define LOGI(...) \
-        ((void)printf(__VA_ARGS__))
-#define LOGE(...)   \
-        ((void)fprintf(stderr, __VA_ARGS__))
-#define LOGW(...)   \
-        ((void)fprintf(stderr, __VA_ARGS__))
+    #define LOGI(...) \
+            ((void)printf(__VA_ARGS__))
+    #define LOGE(...)   \
+            ((void)fprintf(stderr, __VA_ARGS__))
+    #define LOGW(...)   \
+            ((void)fprintf(stderr, __VA_ARGS__))
 #endif
 
 namespace vkbase
@@ -40,7 +38,8 @@ namespace vkbase::sys
     Event<SDL_Event*> sdlEvent;
 
     SDL_Window *window;
-    int w, h;
+    int m_width=1000;
+    int m_height=700;
 
 
     static bool fullscreenMode=false;
@@ -73,18 +72,16 @@ namespace vkbase::sys
         int display=0;
 
         //get the display mode
-        SDL_DisplayMode DM;
-        SDL_GetDisplayMode(display,0, &DM);
-        int width = DM.w;
-        int height = DM.h;
+        // SDL_DisplayMode DM;
+        // SDL_GetDisplayMode(display,0, &DM);
 
 
-         int window_flags = SDL_WINDOW_VULKAN| SDL_WINDOW_RESIZABLE;
+        int window_flags = SDL_WINDOW_VULKAN| SDL_WINDOW_RESIZABLE;
 
         if(fullscreenMode)
             window_flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
 
-        SDL_Window* w = SDL_CreateWindow(m_appName.c_str(), 0,0,width, height, window_flags);
+        SDL_Window* w = SDL_CreateWindow(m_appName.c_str(), SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED,m_width, m_height, window_flags);
 
         sys::window = w;
 
@@ -150,22 +147,28 @@ namespace vkbase::sys
                         data()
 
         );
-        return
-                extensions;
+        return  extensions;
     }
 
     int getWidth()
     {
-        SDL_GetWindowSize(window, &w,
+        SDL_GetWindowSize(window, &m_width,
                           nullptr);
-        return w;
+        return m_width;
     }
 
     int getHeight()
     {
         SDL_GetWindowSize(window,
-                          nullptr, &h);
-        return h;
+                          nullptr, &m_height);
+        return m_height;
+    }
+
+    void setWindowSize(int width, int height)
+    {
+        SDL_SetWindowSize(window, width, height);
+        m_width=width;
+        m_height=height;
     }
 
     float getDPI()
@@ -210,7 +213,7 @@ namespace vkbase::sys
                 case SDL_FINGERDOWN:
                 {
                     engEvents.touchEvents.push(
-                            {event.tfinger.fingerId, {event.tfinger.x * w, event.tfinger.y * h},
+                            {event.tfinger.fingerId, {event.tfinger.x * m_width, event.tfinger.y * m_height},
                              event.tfinger.timestamp,
                              TouchEvent::DOWN});
                     continue;
@@ -219,7 +222,7 @@ namespace vkbase::sys
                 case SDL_FINGERUP:
                 {
                     engEvents.touchEvents.push(
-                            {event.tfinger.fingerId, {event.tfinger.x * w, event.tfinger.y * h},
+                            {event.tfinger.fingerId, {event.tfinger.x * m_width, event.tfinger.y * m_height},
                              event.tfinger.timestamp,
                              TouchEvent::UP});
                     continue;
@@ -228,7 +231,7 @@ namespace vkbase::sys
                 case SDL_FINGERMOTION:
                 {
                     engEvents.touchEvents.push(
-                            {event.tfinger.fingerId, {event.tfinger.x * w, event.tfinger.y * h},
+                            {event.tfinger.fingerId, {event.tfinger.x * m_width, event.tfinger.y * m_height},
                              event.tfinger.timestamp,
                              TouchEvent::MOVE});
                     continue;

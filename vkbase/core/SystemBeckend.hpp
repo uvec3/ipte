@@ -46,6 +46,8 @@ namespace vkbase::sys
 
     int getHeight();
 
+    void setWindowSize(int width, int height);
+
     float getDPI();
 
     void info(const char *str, int size);

@@ -116,7 +116,6 @@ namespace vkbase
 
 
     //VARS
-
     std::string m_appName{"VulkanApp"};
     //VK instance
     VkInstance instance{nullptr};

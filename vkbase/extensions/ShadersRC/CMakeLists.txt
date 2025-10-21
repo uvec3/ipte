@@ -15,6 +15,9 @@ find_package(Vulkan REQUIRED)
 set(SHADERC_SKIP_TESTS true)
 add_subdirectory(shaderc)
 
-add_library(ShadersRC ShadersRC.cpp ShadersRC.hpp)
+add_library(ShadersRC ${WEATHER_SHARED} ShadersRC.cpp ShadersRC.hpp)
 target_link_libraries(ShadersRC PRIVATE shaderc)
 target_include_directories(ShadersRC PRIVATE ${Vulkan_INCLUDE_DIRS})
+
+
+

@@ -49,6 +49,7 @@ target_link_libraries(vkbase_lib
 #Linking app
 target_link_libraries(ipte
         ShadersRC
+        ShadersSlang
         efsw
         nfd
         clip

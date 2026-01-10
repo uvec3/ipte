@@ -188,7 +188,7 @@ void saveAll()
             }
         }
     j["cache"]=cacheData;
-    j["font_size"]=vkbase::imgui::getFontSize();
+    j["font_size"]=vkbase::imgui::getDefaultFontSize();
     j["show"]=std::vector<char>(reinterpret_cast<char*>(&show),reinterpret_cast<char*>(&show)+sizeof(show));
     j["imgui"]=  ImGui::SaveIniSettingsToMemory();
     j["window_width"] = vkbase::sys::getWidth();
@@ -253,7 +253,7 @@ void init_data(nlohmann::json j)
     if(j.contains("show"))
         show = *reinterpret_cast<Show*>(j["show"].get<std::vector<char>>().data());
     if(j.contains("font_size"))
-        vkbase::imgui::setFontSize(j["font_size"].get<float>());
+        vkbase::imgui::setDefaultFontSize(j["font_size"].get<float>());
     if(j.contains("imgui"))
     {
         auto data = j["imgui"].get<std::string>();
@@ -358,7 +358,7 @@ void drawMenuBarUI()
     static bool showMenu = true;
 
     //show menu if mouse is over it for fullscreen mode when ui is hidden
-    if(!show.fullscreen || show.any || ImGui::GetIO().MousePos.y<ImGui::GetMainViewport()->Pos.y+vkbase::imgui::getFontSize()*2||
+    if(!show.fullscreen || show.any || ImGui::GetIO().MousePos.y<ImGui::GetMainViewport()->Pos.y+vkbase::imgui::getDefaultFontSize()*2||
     ImGui::IsKeyDown(ImGui::GetKeyIndex(ImGuiKey_LeftCtrl))||ImGui::IsKeyDown(ImGui::GetKeyIndex(ImGuiKey_RightCtrl)))
     {
         showMenu = true;
@@ -554,15 +554,15 @@ void processShortcuts()
         //font size
         if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Equal)))
         {
-            vkbase::imgui::setFontSize(vkbase::imgui::getFontSize()+1);
+            vkbase::imgui::setDefaultFontSize(vkbase::imgui::getDefaultFontSize()+1);
         }
         if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Minus)))
         {
-            vkbase::imgui::setFontSize(vkbase::imgui::getFontSize()-1);
+            vkbase::imgui::setDefaultFontSize(vkbase::imgui::getDefaultFontSize()-1);
         }
         if(ImGui::GetIO().MouseWheel!=0)
         {
-            vkbase::imgui::setFontSize(vkbase::imgui::getFontSize()+ImGui::GetIO().MouseWheel);
+            vkbase::imgui::setDefaultFontSize(vkbase::imgui::getDefaultFontSize()+ImGui::GetIO().MouseWheel);
         }
 
         if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_LeftAlt)))
@@ -763,7 +763,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** args)
         initTemplates();
         initErrorLog();
 
-        vkbase::imgui::setFontSize(16);
+        vkbase::imgui::setDefaultFontSize(16);
         ImGui::GetIO().IniFilename = nullptr;
 
         //load fractal data from json

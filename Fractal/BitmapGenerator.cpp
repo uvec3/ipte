@@ -2,6 +2,7 @@
 #include <stdexcept>
 #include "../vkbase/core/EngineBase.h"
 #include "../vkbase/extensions/ShadersRC/ShadersRC.hpp"
+#include "../vkbase/extensions/ShadersRC/slang/ShaderCompilerSlang.hpp"
 
 void BitmapGenerator::generateBitmap(const std::string &functionHLSL, const std::string &call, int width, int height, VkDescriptorPool descriptorPool, VkDescriptorSetLayout descriptorSetLayout)
 {
@@ -67,7 +68,7 @@ std::vector<uint32_t> BitmapGenerator::getBitmap()
     VkCommandBufferAllocateInfo alloc_info{};
     alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    alloc_info.commandPool = vkbase::commandPoolReset;
+    alloc_info.commandPool = vkbase::commandPoolResetGraphics;
     alloc_info.commandBufferCount = 1;
 
     VkResult err = vkAllocateCommandBuffers(vkbase::device, &alloc_info, &cb);
@@ -151,7 +152,7 @@ std::vector<uint32_t> BitmapGenerator::getBitmap()
     //wait for the queue to finish the command buffer
     vkQueueWaitIdle(vkbase::computeQueue);
     //free command buffer
-    vkFreeCommandBuffers(vkbase::device, vkbase::commandPoolReset, 1, &cb);
+    vkFreeCommandBuffers(vkbase::device, vkbase::commandPoolResetGraphics, 1, &cb);
 
     auto * data = reinterpret_cast<uint32_t*> (imageBufferHost.map());
     std::vector<uint32_t> bitmap(data, data + width*height);
@@ -172,7 +173,8 @@ std::vector<uint32_t> BitmapGenerator::compileShader(const std::string &function
                                                    "float2 uv=(float2(position.x, -position.y)+1)/2;"
                              +"return " + call +
                              ";}";
-    auto spirv = vkbase::ShadersRC::compileShaderHLSL(shaderHLSL,"bitmap" ,vkbase::ShadersRC::ShaderType::Fragment, "main", {});
+    std::string diagnostics;
+    auto spirv = vkbase::ShadersRC::compileShaderSlang(shaderHLSL,"bitmap" ,vkbase::ShadersRC::ShaderType::Fragment, "main", {}, false, diagnostics);
     return spirv;
 }
 
@@ -593,7 +595,7 @@ void BitmapGenerator::createCommandBuffer()
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     //command pool from which command buffers will be allocated
-    allocInfo.commandPool = vkbase::commandPoolReset;
+    allocInfo.commandPool = vkbase::commandPoolResetGraphics;
     /*VK_COMMAND_BUFFER_LEVEL_PRIMARY: primary command buffers are the ones that can be submitted to a queue for execution.
     VK_COMMAND_BUFFER_LEVEL_SECONDARY: Cannot be submitted directly, but can be called from the primary command buffers.*/
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -723,7 +725,7 @@ void BitmapGenerator::destroy()
     vkDestroyRenderPass(vkbase::device, renderPass, nullptr);
     vkDestroyPipeline(vkbase::device, pipeline, nullptr);
     vkDestroyPipelineLayout(vkbase::device, pipelineLayout, nullptr);
-    vkFreeCommandBuffers(vkbase::device, vkbase::commandPoolReset, 1, &commandBuffer);
+    vkFreeCommandBuffers(vkbase::device, vkbase::commandPoolResetGraphics, 1, &commandBuffer);
     vkDestroyQueryPool(vkbase::device, mTimeQueryPool, nullptr);
 
     imageView=VK_NULL_HANDLE;

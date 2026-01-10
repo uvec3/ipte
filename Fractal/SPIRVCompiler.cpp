@@ -3,12 +3,12 @@
 
 std::vector<uint32_t> SPIRVCompiler::compile()
 {
-    return vkbase::ShadersRC::compileShader(getSource(), shaderName+".spv");
+    return vkbase::ShadersRC::text_to_spirv(getSource());
 }
 
 std::string SPIRVCompiler::getSourceFromOther(AbstractShaderCompiler &other) {
-    if(other.languageName=="GLSL")
-        return vkbase::ShadersRC::compileShaderAsm(other.getSource(), other.shaderName);
+    // if(other.languageName=="GLSL")
+    //     return vkbase::ShadersRC::compileShaderAsm(other.getSource(), other.shaderName);
 
     return "Translation from " + other.languageName + " to " + languageName + " is not supported";
 }

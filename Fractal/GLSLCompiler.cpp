@@ -1,9 +1,10 @@
 #include "GLSLCompiler.h"
 #include "../vkbase/extensions/ShadersRC/ShadersRC.hpp"
+#include "../vkbase/extensions/ShadersRC/slang/ShaderCompilerSlang.hpp"
 
 std::vector<uint32_t> GLSLCompiler::compile()
 {
-    return vkbase::ShadersRC::compileShader(getSource(), shaderName);
+    return{ };
 }
 
 std::string GLSLCompiler::getSourceFromOther(AbstractShaderCompiler &other) {

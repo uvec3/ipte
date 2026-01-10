@@ -553,11 +553,11 @@ std::string exportFunction(const std::vector<uint32_t> &spirv, const std::string
     //    auto codeHLSL = compilerHLSL.compile();
     //    std::cout << codeHLSL;
 
-    std::map<std::string , std::string> defines;
-    if(!outGLSL)
-        defines["mod(a,b)"]="(a-floor(a/b)*b)";
+    // std::map<std::string , std::string> defines;
+    // if(!outGLSL)
+    //     defines["mod(a,b)"]="(a-floor(a/b)*b)";
 
-    return vkbase::ShadersRC::preprocessShaderHLSL(func, "output.frag", vkbase::ShadersRC::ShaderType::Fragment, defines);
+    return func;
 }
 
 
@@ -978,7 +978,7 @@ void ShaderModel::createComputeCommandBuffer()
 {
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.commandPool = vkbase::commandPoolReset;
+    allocInfo.commandPool = vkbase::commandPoolResetGraphics;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     allocInfo.commandBufferCount = 1;
 
@@ -1329,7 +1329,7 @@ void ShaderModel::createComputePipeline(const std::vector<uint32_t> &comp_shader
     pipelineInfo.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     pipelineInfo.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
     pipelineInfo.stage.module = vkbase::createShaderModule(comp_shader);
-    pipelineInfo.stage.pName = "___update___";
+    pipelineInfo.stage.pName = "main";
     pipelineInfo.layout = computePipelineLayout;
     pipelineInfo.flags = 0;
 

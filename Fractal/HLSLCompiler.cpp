@@ -68,9 +68,21 @@ size_t findOutputFunction(const std::string& source,size_t& openingParenthesis, 
         }
         if(checkFlag)
         {
-            closingBrace=source.find('}',j);
-            if(closingBrace!=std::string::npos)
-                return j + 1;
+            //find closing '}'
+            closingBrace=j;
+            int braceCount=1;
+            for(closingBrace++;closingBrace<source.size();closingBrace++)
+            {
+                if(source[closingBrace]=='{')
+                    braceCount++;
+                else if(source[closingBrace]=='}')
+                    braceCount--;
+                if(braceCount==0)
+                    break;
+            }
+            if(braceCount==0)
+                return j+1;
+
             return std::string::npos;
         }
         begin++;
@@ -82,10 +94,10 @@ size_t findOutputFunction(const std::string& source,size_t& openingParenthesis, 
 
 
 std::map<std::string,std::string> computeShaderDefines= {
-    {"InputParameters(Type, VarName)",
-         "RWStructuredBuffer<Type> ___parameters___ : register(u0);"
+    {"InputParameters(TypeName, VarName)",
+         "RWStructuredBuffer<TypeName> ___parameters___ : register(u0);"
 
-         "static Type VarName =  ___parameters___[0];"
+         "static TypeName VarName =  ___parameters___[0];"
 
          "cbuffer k : register(b1,space0)"
          "{"
@@ -116,7 +128,8 @@ std::map<std::string,std::string> computeShaderDefines= {
 std::map<std::string,std::string> fragmentShaderDefines= {
 
     {"InputParameters(TypeName, VarName)",
-                "ConstantBuffer<TypeName> VarName;"
+        "[[vk::binding(0, 0)]] layout(std140)   StructuredBuffer<TypeName> ___parameters___;"
+        "static TypeName VarName =  ___parameters___[0];"
 
                                                  "cbuffer k : register(b1,space0)"
                                                  "{"

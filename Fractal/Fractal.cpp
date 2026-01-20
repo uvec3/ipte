@@ -408,11 +408,11 @@ void Fractal::processInput()
         if(p.contains("mouse_wheel_delta")&&p["mouse_wheel_delta"].type=="double")
             p["mouse_wheel_delta"].get<double>()=io.MouseWheel;
 
-        if(p.contains("lmb_down")&&p["lmb_down"].type=="uint")
+        if(p.contains("lmb_down")&&p["lmb_down"].type=="int")
             p["lmb_down"].get<uint32_t>()=io.MouseDown[0];
-        if(p.contains("rmb_down")&&p["rmb_down"].type=="uint")
+        if(p.contains("rmb_down")&&p["rmb_down"].type=="int")
             p["rmb_down"].get<uint32_t>()=io.MouseDown[1];
-        if(p.contains("mmb_down")&&p["mmb_down"].type=="uint")
+        if(p.contains("mmb_down")&&p["mmb_down"].type=="int")
             p["mmb_down"].get<uint32_t>()=io.MouseDown[2];
     }
     else

@@ -82,7 +82,7 @@ UniformParameters::UniformParameters(UniformParameters oldParameters, const std:
         std::string buffType = j["ssbos"][0]["type"];
         std::string structType = j["types"][buffType]["members"][0]["type"];
         nlohmann::json parametersJson = j["types"][structType]["members"];
-        size = j["ssbos"][0]["block_size"];
+        size = j["types"][buffType]["members"][0]["array_stride"];
         //std::cout << parametersJson;
 
         UniformParameter *previous = nullptr;
@@ -109,7 +109,7 @@ UniformParameters::UniformParameters(UniformParameters oldParameters, const std:
     {
         if(activeParameters.contains(name))//if exists
         {
-            if(p.type == activeParameters[name].type)//copy if possible
+            if(p.type == activeParameters[name].type)//copy if type matches
             {
                 memcpy(activeParameters[name].data.data(), p.data.data(), std::min(p.size(), activeParameters[name].size()));
             } else//try to convert for different types
@@ -148,7 +148,6 @@ UniformParameters::UniformParameters(UniformParameters oldParameters, const std:
             removedParameters[name] = p;
         }
     }
-
 }
 
 std::vector<char> UniformParameters::buildBuffer()
@@ -512,7 +511,7 @@ std::string exportFunction(const std::vector<uint32_t> &spirv, const std::string
 
 
     std::string funcBody = shaderCode.substr(beginPos, endPos - beginPos);
-    std::string entryPointOutput = "_entryPointOutput = ";
+    std::string entryPointOutput = "entryPointParam_output = ";
     funcBody.replace(funcBody.find(entryPointOutput), entryPointOutput.size(), "return ");
 
     std::string type = reflection["outputs"][0]["type"].get<std::string>();

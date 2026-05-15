@@ -10,7 +10,7 @@ class ShaderEditor
 
 public:
     vkbase::imgui::Log log{"Shader compilation log"};
-    bool draw(const std::string& error);
+    bool draw();
     void setShader(ShaderModel *shader);
     void setSourceCode(const std::string &code);
     std::string getSourceCode();
@@ -20,5 +20,5 @@ private:
     TextEditor mainEditor;
     std::vector<TextEditor> editors;
 
-    static void initEditor(TextEditor& editor, AbstractShaderCompiler& compiler);
+    static void initEditor(TextEditor& editor,const std::string& language);
 };

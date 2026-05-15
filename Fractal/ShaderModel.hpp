@@ -11,10 +11,11 @@
 #include "../vkbase/extensions/imgui/imgui.hpp"
 #include "../vkbase/extensions/imgui/Log.hpp"
 #include "../vkbase/extensions/Buffer/Buffer.hpp"
-#include "SPIRVCompiler.h"
 #include "HLSLCompiler.h"
 #include "../External/json.hpp"
 #include "BitmapGenerator.hpp"
+#include "Project.hpp"
+#include "../vkbase/core/ParallelTaskManager.hpp"
 
 std::string glslToHlsl(const std::string &glslT);
 
@@ -75,31 +76,102 @@ public:
 public:
     //public data
     std::atomic<Status> status = NONE;
-    std::string errorMessage;
-    std::vector<std::unique_ptr<AbstractShaderCompiler>> compilers;
+    std::string m_source;
     std::string name;
+    std::string language_name;
     UniformParameters uniformParameters;
     float keys[512]{0};
+    Project slang_project;
+    double compilation_time=0;
 
 private:
+
+    struct PipelineData
+    {
+        VkPipeline graphicsPipeline{VK_NULL_HANDLE};
+        VkDescriptorSetLayout descriptorSetLayout{VK_NULL_HANDLE};
+        VkPipelineLayout pipelineLayout{VK_NULL_HANDLE};
+        VkPipeline computePipeline{VK_NULL_HANDLE};
+        VkPipelineLayout computePipelineLayout{VK_NULL_HANDLE};
+        VkDescriptorSetLayout computeDescriptorSetLayout{VK_NULL_HANDLE};
+
+
+        [[nodiscard]] bool isValid() const
+        {
+            return graphicsPipeline != VK_NULL_HANDLE && computePipeline != VK_NULL_HANDLE;
+        }
+
+        PipelineData()=default;
+
+        PipelineData(const std::vector<uint32_t>& graphics_spv,const std::vector<uint32_t>& compute_spv,VkDescriptorSetLayout set2Layout):PipelineData()
+        {
+            computeDescriptorSetLayout=createComputeDescriptorSetLayout();
+            computePipelineLayout=createComputePipelineLayout(computeDescriptorSetLayout, set2Layout);
+            computePipeline=createComputePipeline(compute_spv,computePipelineLayout);
+            if (!computePipeline)
+            {
+                destroy();
+                return;
+            }
+
+            descriptorSetLayout=createGraphicsDescriptorSetLayout();
+            pipelineLayout=createGraphicsPipelineLayout(descriptorSetLayout, set2Layout);
+            graphicsPipeline=createGraphicsPipeline(graphics_spv,pipelineLayout);
+            if (!graphicsPipeline)
+            {
+                destroy();
+            }
+        }
+        PipelineData(const PipelineData&)=delete;
+        PipelineData& operator =(const PipelineData&)=delete;
+        ~PipelineData(){destroy();}
+        PipelineData (PipelineData&& other)
+        {
+            *this=std::move(other);
+        }
+
+        PipelineData& operator=(PipelineData&& other)
+        {
+            destroy();
+            graphicsPipeline=other.graphicsPipeline;
+            descriptorSetLayout=other.descriptorSetLayout;
+            pipelineLayout=other.pipelineLayout;
+            computePipeline=other.computePipeline;
+            computePipelineLayout=other.computePipelineLayout;
+            computeDescriptorSetLayout=other.computeDescriptorSetLayout;
+            std::memset(static_cast<void*>(&other),0,sizeof(other));
+            return  *this;
+        }
+
+    private:
+        void destroy()
+        {
+            vkDestroyDescriptorSetLayout(vkbase::device, descriptorSetLayout, nullptr);
+            vkDestroyPipelineLayout(vkbase::device, pipelineLayout, nullptr);
+            vkDestroyPipeline(vkbase::device, graphicsPipeline, nullptr);
+            vkDestroyPipelineLayout(vkbase::device, computePipelineLayout, nullptr);
+            vkDestroyDescriptorSetLayout(vkbase::device, computeDescriptorSetLayout, nullptr);
+            vkDestroyPipeline(vkbase::device, computePipeline, nullptr);
+            std::memset(static_cast<void*>(this),0,sizeof(*this));
+        }
+    };
+
     //Vulkan objects
-    VkPipeline graphicsPipeline{VK_NULL_HANDLE};
-    VkDescriptorSetLayout descriptorSetLayout{VK_NULL_HANDLE};
-    VkPipelineLayout pipelineLayout{VK_NULL_HANDLE};
-    VkDescriptorPool descriptorPool{VK_NULL_HANDLE};
+    PipelineData pipeline{};
+    VkDescriptorPool descriptorPoolDynamic{VK_NULL_HANDLE};
+    VkDescriptorPool descriptorPoolStatic{VK_NULL_HANDLE};
     VkCommandPool commandPool{VK_NULL_HANDLE};
     std::vector<VkDescriptorSet> descriptorSets;
     std::vector<vkbase::Buffer> uniformBuffers;
-    std::vector<VkCommandBuffer> cbRender{VK_NULL_HANDLE};
+    std::vector<VkCommandBuffer> cbRender  {VK_NULL_HANDLE};
     bool cbRenderValid = false;
-    bool updateBuffers = false;
-    bool recomplile = false;
+    bool updateCommandBuffers = false;
+
+    VkDescriptorSetLayout descriptorSet2Layout;
+    std::vector<VkDescriptorSet> descriptorSets2;
 
     vkbase::Buffer parametersIntermediateBuffer;
     vkbase::Buffer keysBuffer;
-    VkPipeline computePipeline{VK_NULL_HANDLE};
-    VkPipelineLayout computePipelineLayout{VK_NULL_HANDLE};
-    VkDescriptorSetLayout computeDescriptorSetLayout{VK_NULL_HANDLE};
     VkDescriptorSet computeDescriptorSets{VK_NULL_HANDLE};
     VkCommandBuffer cbCompute{VK_NULL_HANDLE};
     VkFence computeFence{VK_NULL_HANDLE};
@@ -108,33 +180,29 @@ private:
     //LOGIC
     glm::vec4 viewArea{0.0,0.0,1,1};
     bool switched = false;
+    bool recompileFlag=false;
     int writeMainBufferCallbackId = -1;
     int prepareCallbackId = -1;
     int updateExtentCallbackId = -1;
     std::atomic<bool> isChanged = false;
-    AbstractShaderCompiler *currentCompiler = nullptr;
-    std::vector<uint32_t> shaderBin;
-    std::vector<uint32_t> computeShaderBin;
+    std::unique_ptr<AbstractShaderCompiler> currentCompiler = nullptr;
+    vkbase::ShadersRC::CompilationResult fragment_shader;
+    vkbase::ShadersRC::CompilationResult compute_shader;
     std::string newUniformParametersReflection;
 
-    //Synchronization
-    std::atomic<int> threadsCount = 0;
-    std::atomic<int> lastThreadID = 0;
-    std::mutex shaderMutex;
 
-    //how many compilation threads can be run simultaneously
-    static constexpr int MAX_THREADS = 2;
+    ParallelTaskManager compilationTaskManager{1,1,true};
+
 
 public:
     explicit ShaderModel(std::string name);
     ~ShaderModel();
 
+    void recompile();
     void setSource(const std::string &source);
-    std::string getSource();
-    void updateBin();
-    [[maybe_unused]] void updateTranslation(AbstractShaderCompiler* compiler);
-    AbstractShaderCompiler* getCompilerByLanguage(const std::string& languageName);
-    void setCurrentCompiler(const std::string& languageName);
+    const std::string& getSource() const;
+    void recreateSurfaceDependentObjects();
+
     void setViewArea(glm::vec4 newArea);
     const glm::vec4& getViewArea();
     AbstractShaderCompiler& getCurrentCompiler();
@@ -147,24 +215,33 @@ public:
     glm::vec2 getBitmapSize();
     std::vector<uint32_t> getBitmap();
     const BitmapGenerator& getBitmapGenerator();
+    const std::string& get_error();
+    const vkbase::ShadersRC::CompilationResult get_frag_result() const;
+    const vkbase::ShadersRC::CompilationResult get_compute_result() const;
+    bool isCompiling() const;
 
 private:
-    void createDescriptorSetLayout();
-    void createDescriptorPool();
+    static VkDescriptorSetLayout createGraphicsDescriptorSetLayout();
+    static VkDescriptorSetLayout createComputeDescriptorSetLayout();
+
+    void createDescriptorSetLayout2();
+    void createDescriptorSets2();
+    void createDescriptorPools();
     void createUniformBuffer();
     void updateDescriptorSet(uint32_t i);
     void updateComputeDescriptorSet();
     void createDescriptorSets();
     void createRenderBuffers();
     void createComputeCommandBuffer();
-    void rewriteRenderBuffer(int i);
+    void rewriteRenderCommands(int i);
     void rewriteComputeBuffer();
     void createComputeFence();
     void rewriteAllCommandBuffers();
-    void createPipelineLayout();
+    static VkPipelineLayout createGraphicsPipelineLayout(const VkDescriptorSetLayout& descriptorSetLayout, const VkDescriptorSetLayout& descriptorSet2Layout);
+    static VkPipelineLayout createComputePipelineLayout(const VkDescriptorSetLayout& descriptorSetLayout, VkDescriptorSetLayout descriptorSet2Layout);
     void createCommandPool();
-    void createGraphicsPipeline(const std::vector<uint32_t>& frag_shader);
-    void createComputePipeline(const std::vector<uint32_t>& comp_shader);
+    static VkPipeline createGraphicsPipeline(const std::vector<uint32_t>& frag_shader,VkPipelineLayout layout);
+    static VkPipeline createComputePipeline(const std::vector<uint32_t>& comp_shader, VkPipelineLayout layout);
 
 private:
     void onSurfaceChanged() override;
@@ -173,7 +250,7 @@ private:
     void writeCommandBuffer(VkCommandBuffer cbMain, uint32_t imageIndex);
 
     void updateUniform(uint32_t imageIndex);
-    void syncShaderCode();
+    void syncCompilation();
     void submitComputeBuffer();
     void destroy();
 };

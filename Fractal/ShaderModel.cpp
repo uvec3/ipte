@@ -1,19 +1,17 @@
 #include <fstream>
 #include <iostream>
 #include "ShaderModel.hpp"
-#include "GLSLCompiler.h"
 #include "HLSLCompiler.h"
-#include "SPIRVCompiler.h"
 #include <spirv_reflect.hpp>
 #include <spirv_glsl.hpp>
 #include <spirv_hlsl.hpp>
 #include <variant>
+#include <shaderc/shaderc.hpp>
 
-class NotConvertible
-{
-};
 
-using ParameterToConvert = std::variant<NotConvertible *, int *, glm::ivec2 *, glm::ivec3 *, glm::ivec4 *,
+class NonConvertible{};
+
+using ParameterToConvert = std::variant<NonConvertible *, int *, glm::ivec2 *, glm::ivec3 *, glm::ivec4 *,
         float *, glm::vec2 *, glm::vec3 *, glm::vec4 *,
         double *, glm::dvec2 *, glm::dvec3 *, glm::dvec4 *,
         uint32_t *, glm::uvec2 *, glm::uvec3 *, glm::uvec4 *>;
@@ -52,7 +50,7 @@ ParameterToConvert getConvertable(UniformParameter &p)
         return reinterpret_cast<glm::uvec3 *>(p.data.data());
     if(p.type == "uvec4")
         return reinterpret_cast<glm::uvec4 *>(p.data.data());
-    return reinterpret_cast<NotConvertible *>(0);
+    return reinterpret_cast<NonConvertible *>(0);
 }
 
 bool convert(ParameterToConvert &from, ParameterToConvert &to)
@@ -207,15 +205,6 @@ void UniformParameters::deserialize(nlohmann::json j)
     }
 }
 
-//int vecCount(std::string typePrefix, std::string typeName)
-//{
-//    if(typeName.find(typePrefix)==0)
-//    {
-//        std::string std::stoi(typeName.substr(typePrefix.size()));
-//    }
-//    return 0;
-//}
-
 std::string UniformParameters::initStructureString(const std::string &varName)
 {
     std::stringstream ss;
@@ -342,42 +331,56 @@ std::string UniformParameters::dynamicParametersString()
 
 ShaderModel::ShaderModel(std::string name) : name(std::move(name))
 {
-    compilers.emplace_back(new GLSLCompiler());
-    currentCompiler = compilers[0].get();
-    currentCompiler->shaderName = this->name + ".frag";
-
+    currentCompiler = std::make_unique<HLSLCompiler>();
     keysBuffer.create(sizeof(keys), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    createDescriptorSetLayout();
-    createUniformBuffer();
-    createDescriptorPool();
-    createDescriptorSets();
-    createPipelineLayout();
-    createCommandPool();
-    createRenderBuffers();
+
+    createDescriptorSetLayout2();
+    recreateSurfaceDependentObjects();
     createComputeFence();
     createComputeCommandBuffer();
-    updateBuffers = true;
+
+
+    updateCommandBuffers = true;
+    OnDataUpdateReceiver::disable();
+}
+
+
+void ShaderModel::setSource(const std::string &src)
+{
+    m_source=src;
+    recompileFlag=true;
+}
+
+const std::string& ShaderModel::getSource() const
+{
+    return m_source;
+}
+
+void ShaderModel::recreateSurfaceDependentObjects()
+{
+    for (auto& buff:uniformBuffers)
+        buff.destroy();
+
+    vkDestroyDescriptorPool(vkbase::device,descriptorPoolStatic,nullptr);
+    vkDestroyDescriptorPool(vkbase::device,descriptorPoolDynamic,nullptr);
+    vkDestroyCommandPool(vkbase::device,commandPool,nullptr);
+
+
+    createDescriptorPools();
+    createDescriptorSets2();
+    createUniformBuffer();
+
+    createCommandPool();
+    createRenderBuffers();
+
 
     //sync parameters
     for(int i = 0; i < vkbase::imageCount; i++)
     {
         updateUniform(i);
     }
-    vkbase::OnDataUpdateReceiver::disable();
-}
 
-
-void ShaderModel::setSource(const std::string &source)
-{
-    currentCompiler->setSource(source);
-    recomplile = true;
-
-}
-
-std::string ShaderModel::getSource()
-{
-    return currentCompiler->getSource();
 }
 
 std::map<std::string, std::string> glslToHlslType
@@ -500,7 +503,7 @@ std::string exportFunction(const std::vector<uint32_t> &spirv, const std::string
                 i = end;
                 continue;
             }
-            std::cout << varName << std::endl;
+            std::cout <<"var_name: "<< varName << std::endl;
         }
 
         std::string globalVar = shaderCode.substr(i, end - i + 1);
@@ -526,7 +529,7 @@ std::string exportFunction(const std::vector<uint32_t> &spirv, const std::string
             type = glslToHlsl(type);
         funcHeader += type + " " + input["name"].get<std::string>() + ",";
     }
-    if(reflection["inputs"].size() > 0)
+    if(!reflection["inputs"].empty())
         funcHeader.pop_back();
 
 
@@ -560,146 +563,148 @@ std::string exportFunction(const std::vector<uint32_t> &spirv, const std::string
 }
 
 
-void ShaderModel::updateBin()
+void ShaderModel::recompile()
 {
-    if(currentCompiler && threadsCount < MAX_THREADS)
+    if (!recompileFlag)
+        return;
+    recompileFlag=false;
+
+    using namespace  std::chrono;
+    auto start_time = high_resolution_clock::now();
+    slang_project.updateDependencies(m_source);
+
+    status = COMPILING;
+    auto paths =  std::vector{slang_project.getRoot().string()};
+
+    compilationTaskManager.runTask([name=name,src=m_source,paths=paths,currentCompiler=currentCompiler.get(),setLayout2=descriptorSet2Layout]
     {
-        ++threadsCount;
-        int id = ++lastThreadID;
-        std::thread([this, id]()
-                    {
-                        status = COMPILING;
-                        std::cout << "+Compilation started:" << name << "(" << id << ")\n";
-                        std::vector<uint32_t> bin;
-                        std::vector<uint32_t> computeBin;
-                        try
-                        {
-                            currentCompiler->shaderName = name;
-                            bin = currentCompiler->compile();
-                            computeBin = currentCompiler->compileCompute();
-                        }
-                        catch(const std::exception &e)
-                        {
-                            shaderMutex.lock();
-                            errorMessage = e.what();
-                            status = ERROR;
-                            --threadsCount;
-                            shaderMutex.unlock();
-                            return;
-                        }
+        std::cout << "+Compilation started:" << name << "\n";
 
-                        std::cout << "-Compilation finished:" << name << "(" << id << ")\n";
-                        if(id == lastThreadID)//update if thread is not canceled (only if last thread in queue, otherwise ignore)
-                        {
-                            spirv_cross::CompilerReflection compilerReflection(bin);
-                            auto reflection = compilerReflection.compile();
-                            // std::cout<<reflection;
-
-                            try
-                            {
-                                spirv_cross::CompilerReflection compilerComputeReflection(computeBin);
-                                auto reflectionC = compilerComputeReflection.compile();
-                                // std::cout << reflectionC;
-                            }
-                            catch(const std::exception &e)
-                            {
-                                errorMessage = e.what();
-                                status = ERROR;
-                                --threadsCount;
-                                return;
-                            }
+        vkbase::ShadersRC::CompilationResult frag_result{};
+        vkbase::ShadersRC::CompilationResult compute_result{};
+        compute_result = currentCompiler->compileCompute(src, name, paths);
+        frag_result = currentCompiler->compile(src, name, paths);
 
 
-                            shaderMutex.lock();
-                            newUniformParametersReflection = reflection;
-                            shaderBin = std::move(bin);
-                            computeShaderBin = std::move(computeBin);
-                            isChanged = true;
-                            status = COMPILED;
-                            errorMessage = "";
-                            shaderMutex.unlock();
-                            std::cout << "=Binary code updated:" << name << "(" << id << ")\n";
-                        }
-                        --threadsCount;
-                    }).detach();
+        std::string reflection;
+        if (frag_result.success && compute_result.success)
+        {
+           spirv_cross::CompilerReflection compilerReflection(frag_result.spirv);
+           reflection = compilerReflection.compile();
+          // std::cout<<reflection;
+        }
+
+
+
+        // //update pipelines
+        PipelineData pipeline_data{};
+        if (frag_result.success && compute_result.success)
+        {
+
+            try
+            {
+                pipeline_data=PipelineData(frag_result.spirv,compute_result.spirv,setLayout2);
+            }
+            catch (std::exception &e)
+            {
+                std::cout<<"Pipeline creation failed: "<<e.what()<<"\n";
+                frag_result.success=false;
+                compute_result.success=false;
+            }
+        }
+       std::cout << "-Compilation finished:" << name << " \n";
+       return std::tuple{
+           frag_result, compute_result, reflection, std::move(pipeline_data)
+       };
+    },
+    [=,this](auto&& result)
+    {
+       auto& [frag_result,compute_result,reflection,pipeline_data] = result;
+       compilation_time = (high_resolution_clock::now() - start_time).count() /
+           1000000000.0;
+       newUniformParametersReflection = reflection;
+       fragment_shader = std::move(frag_result);
+       compute_shader = std::move(compute_result);
+       isChanged = true;
+       if (frag_result.success && compute_result.success && pipeline_data.isValid())
+       {
+           vkQueueWaitIdle(vkbase::graphicsQueue);
+           pipeline= std::move(pipeline_data);
+           syncCompilation();
+           std::cout << "=Binary code updated:" << name << "\n";
+           status = COMPILED;
+       }
+       else
+       {
+           status = ERROR;
+       }
+
+    });
+}
+
+void ShaderModel::syncCompilation()
+{
+    if(!fragment_shader.spirv.empty())
+    {
+        //update parameters
+        uniformParameters = UniformParameters(uniformParameters, newUniformParametersReflection);
+
+        vkDeviceWaitIdle(vkbase::device);
+
+        createDescriptorSets();
+
+        //update buffers and descriptors
+        if(uniformParameters.size > uniformBuffers[0].info.size)
+        {
+            for(int i = 0; i < vkbase::imageCount; ++i)
+            {
+                if(uniformBuffers[i].info.size < uniformParameters.size)
+                {
+                    uniformBuffers[i].create(uniformParameters.size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                                             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+                    parametersIntermediateBuffer.create(uniformParameters.size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                                                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+                    updateDescriptorSet(i);
+                }
+            }
+        }
+
+        updateComputeDescriptorSet();
+
+        updateCommandBuffers = true;
     }
 }
-
-
-[[maybe_unused]] void ShaderModel::updateTranslation(AbstractShaderCompiler *compiler)
-{
-    compiler->setSource(compiler->getSourceFromOther(*currentCompiler));
-}
-
-AbstractShaderCompiler *ShaderModel::getCompilerByLanguage(const std::string &languageName)
-{
-    for(auto &compiler: compilers)
-    {
-        if(compiler->languageName == languageName)
-            return compiler.get();
-    }
-    return nullptr;
-}
-
-void ShaderModel::setCurrentCompiler(const std::string &languageName)
-{
-    currentCompiler = getCompilerByLanguage(languageName);
-}
-
 
 nlohmann::json ShaderModel::toJson()
 {
     nlohmann::json json;
     json["name"] = name;
-    json["compilers"] = nlohmann::json::array();
-    for(auto &compiler: compilers)
-    {
-        nlohmann::json compilerJson;
-        compilerJson["shaderName"] = compiler->shaderName;
-        compilerJson["languageName"] = compiler->languageName;
-        compilerJson["source"] = compiler->getSource();
-        compilerJson["isCurrent"] = compiler.get() == currentCompiler;
-        json["compilers"].push_back(compilerJson);
-        json["parameters"] = uniformParameters.serialize();
-    }
+    json["languageName"] = currentCompiler->languageName;
+    json["source"] = m_source;
+    json["parameters"] = uniformParameters.serialize();
     return json;
 }
 
 void ShaderModel::loadFromJson(const nlohmann::json &json)
 {
-    name = json["name"];
-    compilers.clear();
-    compilers.reserve(json["compilers"].size());
-    currentCompiler = nullptr;
+    name = json.at("name");
+    if (json.contains(language_name))
+        language_name=json.at("languageName");
+    else
+        language_name="HLSL";
+    if (json.contains("source"))
+        m_source=json.at("source");
+    else
+        m_source=json.at("compilers").at(0).at("source");
 
-    for(auto &compilerJson: json["compilers"])
-    {
-        std::string shaderName = compilerJson["shaderName"];
-        std::string languageName = compilerJson["languageName"];
-        std::string source = compilerJson["source"];
-        if(languageName != "HLSL")
-            continue;
+    if(language_name == "HLSL")
+        currentCompiler=std::make_unique<HLSLCompiler>();
+    else
+        throw std::runtime_error("Unsupported shader language: " + language_name);
 
-        if(languageName == "GLSL")
-            compilers.emplace_back(new GLSLCompiler());
-        else if(languageName == "HLSL")
-            compilers.emplace_back(new HLSLCompiler());
-        else if(languageName == "SPIRV")
-            compilers.emplace_back(new SPIRVCompiler());
-        else
-            throw std::runtime_error("Unknown shader language: " + languageName);
-
-        if(compilerJson["isCurrent"])
-            currentCompiler = compilers.back().get();
-        compilers.back()->shaderName = shaderName;
-        compilers.back()->languageName = languageName;
-        compilers.back()->setSource(source);
-        if(!currentCompiler)
-            currentCompiler = compilers.back().get();
-        if(json.contains("parameters"))
-            uniformParameters.deserialize(json["parameters"]);
-    }
-    recomplile = true;
+    if(json.contains("parameters"))
+        uniformParameters.deserialize(json["parameters"]);
+    recompileFlag=true;
 }
 
 void ShaderModel::setViewArea(glm::vec4 newArea)
@@ -707,7 +712,7 @@ void ShaderModel::setViewArea(glm::vec4 newArea)
     if(newArea != viewArea)
     {
         viewArea = newArea;
-        updateBuffers = true;
+        updateCommandBuffers = true;
     }
 }
 
@@ -726,7 +731,7 @@ void ShaderModel::setActive(bool active)
     if(active && writeMainBufferCallbackId == -1)
     {
         writeMainBufferCallbackId = vkbase::addWriteMainBufferCallback(WRAP_MEMBER_FUNC(writeCommandBuffer));
-        prepareCallbackId = vkbase::addDrawPrepareCallback(WRAP_MEMBER_FUNC(prepare));
+        prepareCallbackId = vkbase::addDrawPrepareCallback(WRAP_MEMBER_FUNC(prepare),10);
         vkbase::OnDataUpdateReceiver::enable();
     } else if(!active && writeMainBufferCallbackId != -1)
     {
@@ -738,9 +743,10 @@ void ShaderModel::setActive(bool active)
     }
 }
 
-void ShaderModel::createDescriptorSetLayout()
+
+VkDescriptorSetLayout ShaderModel::createGraphicsDescriptorSetLayout()
 {
-    //GRAPHICS PIPELINE
+    VkDescriptorSetLayout descriptorSetLayout;
     //binding id within shader
     VkDescriptorSetLayoutBinding uboLayoutBinding{};
     uboLayoutBinding.binding = 0;
@@ -760,52 +766,123 @@ void ShaderModel::createDescriptorSetLayout()
     {
         throw std::runtime_error("failed to create descriptor set layout!");
     }
+    return descriptorSetLayout;
+}
 
+VkDescriptorSetLayout ShaderModel::createComputeDescriptorSetLayout()
+{
+    VkDescriptorSetLayout descriptorSetLayout;
     //COMPUTE PIPELINE
-    VkDescriptorSetLayoutBinding computeLayoutBindings[2]{};
-    computeLayoutBindings[0].binding = 0;
-    computeLayoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    computeLayoutBindings[0].descriptorCount = 1;
-    computeLayoutBindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-    computeLayoutBindings[0].pImmutableSamplers = nullptr; // Optional
+    VkDescriptorSetLayoutBinding computeLayoutBindings[]
+    {
+        {
+            .binding = 0,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+        }
+    };
 
-    computeLayoutBindings[1].binding = 1;
-    computeLayoutBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    computeLayoutBindings[1].descriptorCount = 1;
-    computeLayoutBindings[1].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-    VkDescriptorSetLayoutCreateInfo computeLayoutInfo{};
-    computeLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    VkDescriptorSetLayoutCreateInfo computeLayoutInfo{.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
     computeLayoutInfo.bindingCount = std::size(computeLayoutBindings);
     computeLayoutInfo.pBindings = computeLayoutBindings;
 
-    if(vkCreateDescriptorSetLayout(vkbase::device, &computeLayoutInfo, nullptr, &computeDescriptorSetLayout) != VK_SUCCESS)
+    if(vkCreateDescriptorSetLayout(vkbase::device, &computeLayoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create descriptor set layout for compute pipeline!");
     }
+    return descriptorSetLayout;
 }
 
-void ShaderModel::createDescriptorPool()
+void ShaderModel::createDescriptorSetLayout2()
 {
-    VkDescriptorPoolSize poolSizes[3]{};
-    //graphics pipeline
-    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSizes[0].descriptorCount = 1;
-    //compute pipeline
-    poolSizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    poolSizes[1].descriptorCount = 1 + vkbase::imageCount + 10;
-    //
-    poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes[2].descriptorCount = 1;
+    VkDescriptorSetLayoutBinding bindings[]
+    {
+        {
+            .binding = 0,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT|VK_SHADER_STAGE_FRAGMENT_BIT
+        }
+    };
 
+    VkDescriptorSetLayoutCreateInfo layoutInfo{.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+    layoutInfo.bindingCount = std::size(bindings);
+    layoutInfo.pBindings = bindings;
 
-    VkDescriptorPoolCreateInfo poolInfo{};
-    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    if(vkCreateDescriptorSetLayout(vkbase::device, &layoutInfo, nullptr, &descriptorSet2Layout) != VK_SUCCESS)
+    {
+        throw std::runtime_error("Failed to create descriptor set 2 layout!");
+    }
+}
+
+void ShaderModel::createDescriptorSets2()
+{
+    descriptorSets2.resize(vkbase::imageCount);
+    std::vector<VkDescriptorSetLayout> layouts(vkbase::imageCount, descriptorSet2Layout);
+
+    VkDescriptorSetAllocateInfo allocInfo{.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+    allocInfo.descriptorPool = descriptorPoolStatic;
+    allocInfo.descriptorSetCount = static_cast<uint32_t>(vkbase::imageCount);
+    allocInfo.pSetLayouts = layouts.data();
+
+    if(vkAllocateDescriptorSets(vkbase::device, &allocInfo,
+                                descriptorSets2.data()) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to allocate descriptor sets 2!");
+    }
+
+    VkDescriptorBufferInfo bufferInfo{};
+    bufferInfo.buffer = keysBuffer;
+    bufferInfo.offset = 0;
+    bufferInfo.range = keysBuffer.info.size;
+
+    std::vector<VkWriteDescriptorSet> writes(vkbase::imageCount);
+    for (int i=0;i<vkbase::imageCount;++i)
+    {
+        VkWriteDescriptorSet descriptorWrite{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+        descriptorWrite.dstSet = descriptorSets2[i];
+        descriptorWrite.dstBinding = 0;
+        descriptorWrite.dstArrayElement = 0;
+        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrite.descriptorCount = 1;
+        descriptorWrite.pBufferInfo = &bufferInfo;
+        descriptorWrite.pImageInfo = nullptr; // Optional
+        descriptorWrite.pTexelBufferView = nullptr; // Optional
+        writes[i]=descriptorWrite;
+    }
+
+    vkUpdateDescriptorSets(vkbase::device, writes.size(), writes.data(), 0, nullptr);
+}
+
+void ShaderModel::createDescriptorPools()
+{
+    VkDescriptorPoolSize poolSizes[]{
+        VkDescriptorPoolSize{.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 1},
+         VkDescriptorPoolSize{.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .descriptorCount = 1 + vkbase::imageCount + 10},
+         VkDescriptorPoolSize{.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = 1}
+     };
+
+    VkDescriptorPoolCreateInfo poolInfo{.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
     poolInfo.poolSizeCount = std::size(poolSizes);
     poolInfo.pPoolSizes = poolSizes;
     poolInfo.maxSets = static_cast<uint32_t>(vkbase::imageCount + 1 + 1);
 
-    if(vkCreateDescriptorPool(vkbase::device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS)
+    if(vkCreateDescriptorPool(vkbase::device, &poolInfo, nullptr, &descriptorPoolDynamic) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create descriptor pool!");
+    }
+
+    VkDescriptorPoolSize poolSizesStatic[]{
+         VkDescriptorPoolSize{.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = vkbase::imageCount},
+    };
+
+    VkDescriptorPoolCreateInfo poolInfoStatic{.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+    poolInfoStatic.poolSizeCount = std::size(poolSizesStatic);
+    poolInfoStatic.pPoolSizes = poolSizesStatic;
+    poolInfoStatic.maxSets = static_cast<uint32_t>(vkbase::imageCount);
+
+    if(vkCreateDescriptorPool(vkbase::device, &poolInfoStatic, nullptr, &descriptorPoolStatic) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create descriptor pool!");
     }
@@ -821,14 +898,11 @@ void ShaderModel::createUniformBuffer()
 
     parametersIntermediateBuffer.create(8, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                                         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-
 }
 
 void ShaderModel::updateDescriptorSet(uint32_t i)
 {
     //The information about buffer for descriptor set
-
     VkDescriptorBufferInfo bufferInfo{};
     //buffer
     bufferInfo.buffer = uniformBuffers[i].buffer;
@@ -837,9 +911,7 @@ void ShaderModel::updateDescriptorSet(uint32_t i)
     //size of one set
     bufferInfo.range = uniformBuffers[i].info.size;
 
-    VkWriteDescriptorSet descriptorWrite{};
-    //type
-    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    VkWriteDescriptorSet descriptorWrite{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
     descriptorWrite.dstSet = descriptorSets[i];
     descriptorWrite.dstBinding = 0;
     descriptorWrite.dstArrayElement = 0;
@@ -854,53 +926,42 @@ void ShaderModel::updateDescriptorSet(uint32_t i)
 
 void ShaderModel::updateComputeDescriptorSet()
 {
-    VkWriteDescriptorSet descriptorWrites[2]{};
 
     VkDescriptorBufferInfo bufferInfo{};
     bufferInfo.buffer = parametersIntermediateBuffer.buffer;
     bufferInfo.offset = 0;
     bufferInfo.range = parametersIntermediateBuffer.info.size;
 
-    descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descriptorWrites[0].dstSet = computeDescriptorSets;
-    descriptorWrites[0].dstBinding = 0;
-    descriptorWrites[0].dstArrayElement = 0;
-    descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    descriptorWrites[0].descriptorCount = 1;
-    descriptorWrites[0].pBufferInfo = &bufferInfo;
-    descriptorWrites[0].pImageInfo = nullptr;
-    descriptorWrites[0].pTexelBufferView = nullptr;
-
-    VkDescriptorBufferInfo bufferInfoKeys{};
-    bufferInfoKeys.buffer = keysBuffer.buffer;
-    bufferInfoKeys.offset = 0;
-    bufferInfoKeys.range = keysBuffer.info.size;
-
-    descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descriptorWrites[1].dstSet = computeDescriptorSets;
-    descriptorWrites[1].dstBinding = 1;
-    descriptorWrites[1].dstArrayElement = 0;
-    descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    descriptorWrites[1].descriptorCount = 1;
-    descriptorWrites[1].pBufferInfo = &bufferInfoKeys;
-    descriptorWrites[1].pImageInfo = nullptr;
-    descriptorWrites[1].pTexelBufferView = nullptr;
+    VkWriteDescriptorSet descriptorWrites[]
+    {
+        VkWriteDescriptorSet{
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = computeDescriptorSets,
+        .dstBinding = 0,
+        .dstArrayElement = 0,
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        .pImageInfo = nullptr,
+        .pBufferInfo = &bufferInfo,
+        .pTexelBufferView = nullptr,
+        },
+    };
 
     vkUpdateDescriptorSets(vkbase::device, std::size(descriptorWrites), descriptorWrites, 0, nullptr);
 }
 
 void ShaderModel::createDescriptorSets()
 {
+    vkResetDescriptorPool(vkbase::device, descriptorPoolDynamic, 0);
     //GRAPHICS PIPELINE
-
     //resize the array of descriptor on image count
     descriptorSets.resize(vkbase::imageCount);
 
-    std::vector<VkDescriptorSetLayout> layouts(vkbase::imageCount, descriptorSetLayout);
+    std::vector<VkDescriptorSetLayout> layouts(vkbase::imageCount, pipeline.descriptorSetLayout);
 
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = descriptorPool;
+    allocInfo.descriptorPool = descriptorPoolDynamic;
     allocInfo.descriptorSetCount = static_cast<uint32_t>(vkbase::imageCount);
     allocInfo.pSetLayouts = layouts.data();
 
@@ -916,9 +977,9 @@ void ShaderModel::createDescriptorSets()
     //COMPUTE PIPELINE
     VkDescriptorSetAllocateInfo comp_allocInfo{};
     comp_allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    comp_allocInfo.descriptorPool = descriptorPool;
+    comp_allocInfo.descriptorPool = descriptorPoolDynamic;
     comp_allocInfo.descriptorSetCount = 1;
-    comp_allocInfo.pSetLayouts = &computeDescriptorSetLayout;
+    comp_allocInfo.pSetLayouts = &pipeline.computeDescriptorSetLayout;
 
     if(vkAllocateDescriptorSets(vkbase::device, &comp_allocInfo,
                                 &computeDescriptorSets) != VK_SUCCESS)
@@ -997,7 +1058,7 @@ void ShaderModel::createComputeCommandBuffer()
     vkEndCommandBuffer(cbCompute);
 }
 
-void ShaderModel::rewriteRenderBuffer(int i)
+void ShaderModel::rewriteRenderCommands(int i)
 {
     VkCommandBuffer cb = cbRender[i];
     VkCommandBufferInheritanceInfo inheritanceInfo = vkbase::createMainBufferInheritanceInfo(i);
@@ -1034,11 +1095,13 @@ void ShaderModel::rewriteRenderBuffer(int i)
         vkCmdSetScissor(cb, 0, 1, &scissor);
         //bind descriptor set
         vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                pipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr);
+                                pipeline.pipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr);
+        vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                         pipeline.pipelineLayout, 1, 1, &descriptorSets2[i], 0, nullptr);
         //bind pipeline
-        vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+        vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.graphicsPipeline);
         //draw rectangle
-        vkCmdDraw(cb, 4/*vertex count*/, 1/*instance count*/,
+        vkCmdDraw(cb, 3/*vertex count*/, 1/*instance count*/,
                   0/*offset gl_VertexIndex*/, 0/*(gl_InstanceIndex)*/);
     }
     vkEndCommandBuffer(cb);
@@ -1056,8 +1119,9 @@ void ShaderModel::rewriteComputeBuffer()
     }
 
     {
-        vkCmdBindPipeline(cbCompute, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
-        vkCmdBindDescriptorSets(cbCompute, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &computeDescriptorSets, 0, nullptr);
+        vkCmdBindPipeline(cbCompute, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline.computePipeline);
+        vkCmdBindDescriptorSets(cbCompute, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline.computePipelineLayout, 0, 1, &computeDescriptorSets, 0, nullptr);
+        vkCmdBindDescriptorSets(cbCompute, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline.computePipelineLayout, 1, 1, &descriptorSets2[0], 0, nullptr);
         vkCmdDispatch(cbCompute, 1, 1, 1);
     }
 
@@ -1105,44 +1169,70 @@ void ShaderModel::submitComputeBuffer()
 
 void ShaderModel::rewriteAllCommandBuffers()
 {
-    if(graphicsPipeline)
+    if(pipeline.graphicsPipeline&&pipeline.computePipeline)
     {
         vkDeviceWaitIdle(vkbase::device);
         vkResetCommandPool(vkbase::device, commandPool, 0);
         for(int i = 0; i < cbRender.size(); i++)
         {
-            rewriteRenderBuffer(i);
+            rewriteRenderCommands(i);
         }
 
         rewriteComputeBuffer();
         cbRenderValid = true;
     }
+    else
+    {
+        cbRenderValid = false;
+    }
 }
 
-void ShaderModel::createPipelineLayout()
+
+VkPipelineLayout ShaderModel::createGraphicsPipelineLayout(const VkDescriptorSetLayout& descriptorSetLayout, const VkDescriptorSetLayout& descriptorSet2Layout)
 {
-    //--GRAPHIC PIPELINE LAYOUT--//
+    VkDescriptorSetLayout setLayouts[]
+    {
+        descriptorSetLayout,
+        descriptorSet2Layout
+    };
+
+    VkPipelineLayout layout;
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     //count descriptor sets layout
-    pipelineLayoutInfo.setLayoutCount = 1; // Optional
+    pipelineLayoutInfo.setLayoutCount = std::size(setLayouts);
     //array of descriptor set layout's
-    pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout; // Optional
+    pipelineLayoutInfo.pSetLayouts = setLayouts; // Optional
     pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
     pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
-    if(vkCreatePipelineLayout(vkbase::device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
+    if(vkCreatePipelineLayout(vkbase::device, &pipelineLayoutInfo, nullptr, &layout) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create pipeline layout!");
     }
 
-    //--COMPUTE PIPELINE LAYOUT--//
+    return layout;
+}
+
+VkPipelineLayout ShaderModel::createComputePipelineLayout(const VkDescriptorSetLayout& descriptorSetLayout, VkDescriptorSetLayout descriptorSet2Layout)
+{
+    VkDescriptorSetLayout setLayouts[]
+    {
+        descriptorSetLayout,
+        descriptorSet2Layout
+    };
+
+    VkPipelineLayout layout;
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
     pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutCreateInfo.setLayoutCount = 1;
-    pipelineLayoutCreateInfo.pSetLayouts = &computeDescriptorSetLayout;
-    vkCreatePipelineLayout(vkbase::device, &pipelineLayoutCreateInfo, nullptr, &computePipelineLayout);
+    pipelineLayoutCreateInfo.setLayoutCount = std::size(setLayouts);
+    pipelineLayoutCreateInfo.pSetLayouts = setLayouts;
 
+    if (vkCreatePipelineLayout(vkbase::device, &pipelineLayoutCreateInfo, nullptr, &layout)!= VK_SUCCESS) {
+        throw std::runtime_error("failed to create compute pipeline layout!");
+    }
+
+    return layout;
 }
 
 void ShaderModel::createCommandPool()
@@ -1162,11 +1252,12 @@ void ShaderModel::createCommandPool()
         throw std::runtime_error("Failed to create command pool!");
 }
 
-void ShaderModel::createGraphicsPipeline(const std::vector<uint32_t> &frag_shader)
+VkPipeline ShaderModel::createGraphicsPipeline(const std::vector<uint32_t> &frag_shader, VkPipelineLayout layout)
 {
     //create shader modules
-    VkShaderModule vertShaderModule = vkbase::loadPrecompiledShader("shaders/VERT_shader.vert");
+    VkShaderModule vertShaderModule = vkbase::loadPrecompiledShader("shaders/vert");
     VkShaderModule fragShaderModule = vkbase::createShaderModule(frag_shader);
+
 
     VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
     vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -1286,7 +1377,7 @@ void ShaderModel::createGraphicsPipeline(const std::vector<uint32_t> &frag_shade
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.pDynamicState = &dynamicState; // Optional
     //uniform
-    pipelineInfo.layout = pipelineLayout;
+    pipelineInfo.layout = layout;
     //render pass describes where and how to update image
     pipelineInfo.renderPass = vkbase::renderPass;
     //subpass in render pass (only one)
@@ -1295,33 +1386,25 @@ void ShaderModel::createGraphicsPipeline(const std::vector<uint32_t> &frag_shade
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
     pipelineInfo.basePipelineIndex = -1; // Optional
 
-
-    VkPipeline newPipeline;
     //CREATE PIPELINE
-    if(vkCreateGraphicsPipelines(vkbase::device,
-                                 VK_NULL_HANDLE,//cache
-                                 1,//count
-                                 &pipelineInfo,
-                                 nullptr,
-                                 &newPipeline) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create graphics pipeline!");
-    }
+    VkPipeline newPipeline;
+    auto result = vkCreateGraphicsPipelines(vkbase::device, VK_NULL_HANDLE, 1, &pipelineInfo,nullptr,
+                              &newPipeline);
 
-    //modules may be destroyed now
+    //destroy shader modules
     vkDestroyShaderModule(vkbase::device, fragShaderModule, nullptr);
     vkDestroyShaderModule(vkbase::device, vertShaderModule, nullptr);
 
-    //Replace old pipeline
-    if(graphicsPipeline)
+    if(result != VK_SUCCESS)
     {
-        vkDeviceWaitIdle(vkbase::device);
-        vkDestroyPipeline(vkbase::device, graphicsPipeline, nullptr);
+        return VK_NULL_HANDLE;
     }
-    graphicsPipeline = newPipeline;
+
+
+    return newPipeline;
 }
 
-void ShaderModel::createComputePipeline(const std::vector<uint32_t> &comp_shader)
+VkPipeline ShaderModel::createComputePipeline(const std::vector<uint32_t> &comp_shader, VkPipelineLayout layout)
 {
     VkComputePipelineCreateInfo pipelineInfo{};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
@@ -1329,40 +1412,46 @@ void ShaderModel::createComputePipeline(const std::vector<uint32_t> &comp_shader
     pipelineInfo.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
     pipelineInfo.stage.module = vkbase::createShaderModule(comp_shader);
     pipelineInfo.stage.pName = "main";
-    pipelineInfo.layout = computePipelineLayout;
+    pipelineInfo.layout = layout;
     pipelineInfo.flags = 0;
 
-    if(computePipeline)
-    {
-        vkDestroyPipeline(vkbase::device, computePipeline, nullptr);
-    }
-
-    if(vkCreateComputePipelines(vkbase::device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &computePipeline) != VK_SUCCESS)
-        throw std::runtime_error("Failed to create compute pipeline ");
+    VkPipeline newPipeline;
+    auto result = vkCreateComputePipelines(vkbase::device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &newPipeline);
 
     //destroy shader module
     vkDestroyShaderModule(vkbase::device, pipelineInfo.stage.module, nullptr);
+
+    if(result != VK_SUCCESS)
+    {
+        return VK_NULL_HANDLE;
+    }
+
+    return newPipeline;
 }
 
 void ShaderModel::onSurfaceChanged()
 {
-    updateBuffers = true;
+    recreateSurfaceDependentObjects();
+    syncCompilation();
+    updateCommandBuffers = true;
 }
 
 void ShaderModel::prepare([[maybe_unused]] uint32_t image_index)
 {
-    syncShaderCode();
-
-    if(recomplile)
+    compilationTaskManager.finish();
+    if (!slang_project.modifiedFiles.empty())
     {
-        updateBin();
-        recomplile = false;
+        recompileFlag=true;
+        slang_project.modifiedFiles.clear();
+        slang_project.updateDependencies(m_source);
     }
 
-    if(updateBuffers)
+    recompile();
+
+    if(updateCommandBuffers)
     {
         rewriteAllCommandBuffers();
-        updateBuffers = false;
+        updateCommandBuffers = false;
     }
 
     submitComputeBuffer();
@@ -1381,44 +1470,7 @@ void ShaderModel::writeCommandBuffer(VkCommandBuffer cbMain, uint32_t imageIndex
     }
 }
 
-void ShaderModel::syncShaderCode()
-{
-    if(isChanged)
-    {
-        shaderMutex.lock();
-        if(!shaderBin.empty())
-        {
-            //update parameters
-            uniformParameters = UniformParameters(uniformParameters, newUniformParametersReflection);
 
-            vkDeviceWaitIdle(vkbase::device);
-
-            //update buffers and descriptors
-            if(uniformParameters.size > uniformBuffers[0].info.size)
-                for(int i = 0; i < vkbase::imageCount; ++i)
-                {
-                    if(uniformBuffers[i].info.size < uniformParameters.size)
-                    {
-                        uniformBuffers[i].create(uniformParameters.size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                                                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-                        parametersIntermediateBuffer.create(uniformParameters.size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                                                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-                        updateDescriptorSet(i);
-                        updateComputeDescriptorSet();
-                    }
-                }
-
-            //update pipelines
-            createGraphicsPipeline(shaderBin);
-            createComputePipeline(computeShaderBin);
-
-            updateBuffers = true;
-            isChanged = false;
-
-        }
-        shaderMutex.unlock();
-    }
-}
 
 void ShaderModel::updateUniform(uint32_t imageIndex)
 {
@@ -1434,14 +1486,9 @@ void ShaderModel::destroy()
     for(auto &b: uniformBuffers)
         b.destroy();
 
-    vkDestroyDescriptorSetLayout(vkbase::device, descriptorSetLayout, nullptr);
-    vkDestroyPipelineLayout(vkbase::device, pipelineLayout, nullptr);
-    vkDestroyPipeline(vkbase::device, graphicsPipeline, nullptr);
-    vkDestroyDescriptorPool(vkbase::device, descriptorPool, nullptr);
-
-    vkDestroyPipelineLayout(vkbase::device, computePipelineLayout, nullptr);
-    vkDestroyDescriptorSetLayout(vkbase::device, computeDescriptorSetLayout, nullptr);
-    vkDestroyPipeline(vkbase::device, computePipeline, nullptr);
+    vkDestroyDescriptorPool(vkbase::device, descriptorPoolDynamic, nullptr);
+    vkDestroyDescriptorPool(vkbase::device, descriptorPoolStatic, nullptr);
+    vkDestroyDescriptorSetLayout(vkbase::device, descriptorSet2Layout,nullptr);
     vkDestroyFence(vkbase::device, computeFence, nullptr);
     parametersIntermediateBuffer.destroy();
     keysBuffer.destroy();
@@ -1452,22 +1499,18 @@ void ShaderModel::destroy()
 ShaderModel::~ShaderModel()
 {
     destroy();
+    compilationTaskManager.detachAll();
 }
 
 std::string ShaderModel::exportOutput(const std::string &funcName, const std::string &language, bool onlyBody)
 {
-    if(language == "GLSL")
-        return exportFunction(currentCompiler->compileForExport("output", uniformParameters.dynamicParametersString(), uniformParameters.initStructureString("p")), funcName, onlyBody, true);
-    else if(language == "HLSL")
-        return exportFunction(currentCompiler->compileForExport("output", uniformParameters.dynamicParametersString(), uniformParameters.initStructureString("p")), funcName, onlyBody, false);
-    else
-        return "Unknown language: " + language;
+    return "";
 }
 
 void ShaderModel::generateBitmap(int width, int height, const std::string &functionName, const std::string &functionCall, VkDescriptorSetLayout descriptorSetLayout)
 {
     auto hlslExportFunction = exportOutput(functionName, "HLSL", false);
-    bitmapGenerator.generateBitmap(hlslExportFunction, functionCall, width, height, descriptorPool, descriptorSetLayout);
+    bitmapGenerator.generateBitmap(hlslExportFunction, functionCall, width, height, descriptorPoolDynamic, descriptorSetLayout);
 }
 
 VkDescriptorSet ShaderModel::getBitmapDescriptorSet()
@@ -1488,5 +1531,25 @@ glm::vec2 ShaderModel::getBitmapSize()
 const BitmapGenerator &ShaderModel::getBitmapGenerator()
 {
     return bitmapGenerator;
+}
+
+const std::string& ShaderModel::get_error()
+{
+    return fragment_shader.diagnostics_text;
+}
+
+const vkbase::ShadersRC::CompilationResult ShaderModel::get_frag_result() const
+{
+    return fragment_shader;
+}
+
+const vkbase::ShadersRC::CompilationResult ShaderModel::get_compute_result() const
+{
+    return compute_shader;
+}
+
+bool ShaderModel::isCompiling() const
+{
+    return status==Status::COMPILING;
 }
 

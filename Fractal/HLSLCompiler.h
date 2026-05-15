@@ -8,12 +8,13 @@ class HLSLCompiler: public AbstractShaderCompiler
 {
 public:
     HLSLCompiler();
-    std::vector<uint32_t> compile() override;
+    vkbase::ShadersRC::CompilationResult compile(const std::string& src, const std::string& name, const std::vector<std::string>& paths) override;
 
-    std::vector<uint32_t> compileCompute() override;
+    vkbase::ShadersRC::CompilationResult compileCompute(const std::string& src, const std::string& name, const std::vector<std::string>& paths) override;
 
     std::string getSourceFromOther(AbstractShaderCompiler &other) override;
 
-    std::vector<uint32_t> compileForExport(std::string funcName, std::string additionalArguments, std::string parametersInit) override;
+    vkbase::ShadersRC::CompilationResult compileForExport(const std::string& src, const std::string& name, const std::vector<std::string>& paths,std::string funcName, std::string additionalArguments,
+                                                          std::string parametersInit) override;
 };
 

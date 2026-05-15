@@ -4,37 +4,20 @@
 #include <cstdint>
 #include <vector>
 #include <mutex>
+#include "../vkbase/extensions/ShadersRC/ShadersRC.hpp"
 
 class AbstractShaderCompiler
 {
-    std::string source;
-    std::mutex sourceMutex;
 public:
-
     std::string languageName;
-    std::string shaderName="NewShader";
 
-    virtual std::vector<uint32_t> compile() = 0;
-    virtual std::vector<uint32_t> compileCompute() = 0;
-    virtual std::vector<uint32_t> compileForExport(std::string funcName, std::string additionalArguments, std::string parametersInit) = 0;
+    virtual vkbase::ShadersRC::CompilationResult compile(const std::string& src, const std::string& name, const std::vector<std::string>& paths) = 0;
+    virtual vkbase::ShadersRC::CompilationResult compileCompute(const std::string& src, const std::string& name, const std::vector<std::string>& paths) = 0;
+    virtual vkbase::ShadersRC::CompilationResult compileForExport(const std::string& src, const std::string& name, const std::vector<std::string>& paths,std::string funcName, std::string additionalArguments,
+                                                                  std::string parametersInit) = 0;
     virtual std::string getSourceFromOther(AbstractShaderCompiler& other) = 0;
     virtual ~AbstractShaderCompiler()= default;
 
-    void setSource(const std::string &sourceCode)
-    {
-        sourceMutex.lock();
-        source = sourceCode;
-        sourceMutex.unlock();
-    }
-
-    std::string getSource()
-    {
-        sourceMutex.lock();
-        std::string result = source;
-        sourceMutex.unlock();
-        return result;
-
-    }
 };
 
 

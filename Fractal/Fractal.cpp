@@ -6,23 +6,10 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "../External/stb/stb_image_write.h"
 
-const std::string &Fractal::getMirrorFile()
-{
-    return fileForMirroring;
-}
-
-void Fractal::onUpdateLogic(uint32_t imageIndex)
-{
-    autoSaveToMirrorFile();
-}
 
 Fractal::Fractal()
 {
     shaderModel= std::make_unique<ShaderModel>("FRAG_shader.frag");
-    //shaderModel->compilers.emplace_back(std::make_unique<SPIRVCompiler>());
-    shaderModel->compilers.emplace_back(std::make_unique<HLSLCompiler>());
-    shaderModel->setCurrentCompiler("HLSL");
-
     shaderEditor= new ShaderEditor();
     shaderEditor->setShader(shaderModel.get());
 
@@ -63,7 +50,6 @@ void Fractal::sourceChanged()
 {
     shaderModel->setSource(shaderEditor->getSourceCode());
     std::cout<<"Source changed\n";
-    savedToMirrorFile = false;
 }
 
 void Fractal::drawEditor(bool *open)
@@ -75,28 +61,16 @@ void Fractal::drawEditor(bool *open)
 
     if(ImGui::Begin("Shader Editor",open, ImGuiWindowFlags_NoNav))
     {
-        if(fileForMirroring.empty())
-        {
-            if(ImGui::Button("Bind to file"))
-            {
-                createMirrorFile();
-            }
-        } else
-        {
-            ImGui::Text("%s", ("Bound to file:\t"+fileForMirroring).c_str());
-            ImGui::SameLine();
-            if(ImGui::Button("Remove file"))
-            {
-                removeMirrorFile();
-            }
-        }
-
-
 
         switch(shaderModel->status)
         {
-            case ShaderModel::COMPILED:
-                ImGui::Text("Status: COMPILED");
+        case ShaderModel::COMPILED:
+            {
+                std::string compilation_time="(f="+std::to_string(shaderModel->get_frag_result().compilation_time)+"s, ";
+                compilation_time+="c="+std::to_string(shaderModel->get_compute_result().compilation_time)+"s, ";
+                compilation_time+="total="+std::to_string(shaderModel->compilation_time)+"s )";
+                ImGui::Text(("Status: COMPILED" +compilation_time).c_str());
+            }
                 break;
             case ShaderModel::COMPILING:
                 ImGui::Text("Status: COMPILING...");
@@ -112,7 +86,7 @@ void Fractal::drawEditor(bool *open)
 
         if(ImGui::BeginChild("Editor",ImVec2(0,0)),0,ImGuiWindowFlags_NoNav)
         {
-            if(shaderEditor->draw(shaderModel->errorMessage))
+            if(shaderEditor->draw())
             {
                 sourceChanged();
             }
@@ -124,46 +98,6 @@ void Fractal::drawEditor(bool *open)
 
 }
 
-void Fractal::autoSaveToMirrorFile()
-{
-    if(mirrorToFileFlag)
-    {
-        mirrorToFile(fileForMirroring);
-        mirrorToFileFlag= false;
-    }
-
-    if(!savedToMirrorFile && std::chrono::system_clock::now()-lastSaveTime>std::chrono::milliseconds(500))
-    {
-        writeMirrorFile();
-        lastSaveTime=std::chrono::system_clock::now();
-        savedToMirrorFile=true;
-        ignoreNextMirrorFileChange=true;
-    }
-}
-
-
-void Fractal::mirrorFileChanged(FileAction action)
-{
-    switch(action)
-    {
-        case FileAction::Add:
-            break;
-        case FileAction::Delete:
-            writeMirrorFile();
-            break;
-        case FileAction::Modified:
-            if(ignoreNextMirrorFileChange)
-                ignoreNextMirrorFileChange=false;
-            else
-                readFromMirrorFile();
-            break;
-        case FileAction::Moved:
-            writeMirrorFile();
-            break;
-        default:
-            break;
-    }
-}
 
 void Fractal::initHLSL()
 {
@@ -208,6 +142,7 @@ void Fractal::deserialize(const nlohmann::json &j)
         std::copy(cacheData.begin(),cacheData.end(),cachePtr);
     }
     shaderEditor->setShader(shaderModel.get());
+    shaderModel->slang_project.setRoot( savePath.empty()? ".":savePath );
 }
 
 bool Fractal::load(const std::string &path)
@@ -218,8 +153,8 @@ bool Fractal::load(const std::string &path)
         std::ifstream file(path);
         file>>j;
         file.close();
+        savePath=path;
         deserialize(j);
-        savePath = path;
     }
     catch (std::exception& e)
     {
@@ -246,8 +181,11 @@ bool Fractal::save(const std::string &path, bool updatePath)
         std::ofstream file(path);
         file<<serialize();
         file.close();
-        if(updatePath)
+        if(updatePath&&savePath!=path)
+        {
             savePath = path;
+            shaderModel->slang_project.setRoot(path);
+        }
         saved = true;
         return true;
     }
@@ -258,77 +196,6 @@ bool Fractal::save(const std::string &path, bool updatePath)
     }
 }
 
-void Fractal::createMirrorFile()
-{
-    std::thread{//open dialog from another thread to avoid blocking main thread
-            [this]()
-            {
-                nfdchar_t *outPath;
-                nfdfilteritem_t filterItem[1] = { { "HLSL", "hlsl" } };
-                nfdresult_t result = NFD_SaveDialog(&outPath, filterItem, 1, nullptr,(getName()+".hlsl").c_str());
-                if (result == NFD_OKAY)
-                {
-                    fileForMirroring=outPath;
-                    mirrorToFileFlag=true;
-                    NFD_FreePath(outPath);
-                }
-                else if (result == NFD_ERROR)
-                {
-                    std::cerr<< "Error from save dialog: " << NFD_GetError() << std::endl;
-                }
-            }
-    }.detach();
-}
-
-void Fractal::mirrorToFile(const std::string &filename, bool initFromFile)
-{
-    if(addFileToWatch(filename, WRAP_MEMBER_FUNC(mirrorFileChanged)))
-    {
-        fileForMirroring = filename;
-        if(initFromFile && std::filesystem::exists(filename))
-        {
-            readFromMirrorFile();
-        } else
-        {
-            writeMirrorFile();
-        }
-    }
-}
-
-void Fractal::removeMirrorFile()
-{
-    removeFileFromWatch(fileForMirroring);
-    fileForMirroring="";
-}
-
-void Fractal::writeMirrorFile()
-{
-    if(fileForMirroring.empty())
-        return;
-    std::ofstream file(fileForMirroring);
-    if(!file)
-        throw std::runtime_error("Can't open file: "+fileForMirroring);
-    file<<shaderModel->getSource();
-    file.close();
-    ignoreNextMirrorFileChange=true;
-}
-
-void Fractal::readFromMirrorFile()
-{
-    std::cout<<"reading:"+fileForMirroring+"\n";
-    if(fileForMirroring.empty())
-        return;
-    std::ifstream file(fileForMirroring);
-    if(!file)
-        throw std::runtime_error("Can't open file: "+fileForMirroring);
-
-    //read all file
-    std::string str((std::istreambuf_iterator<char>(file)),
-                    std::istreambuf_iterator<char>());
-    shaderModel->setSource(str);
-    shaderEditor->setSourceCode(str);
-}
-
 void Fractal::setName(std::string newName)
 {
     shaderModel->name = std::move(newName);
@@ -337,12 +204,11 @@ void Fractal::setName(std::string newName)
 void Fractal::setActive(bool active)
 {
     shaderModel->setActive(active);
-    OnLogicUpdateReceiver::enable(active);
 }
 
-std::string Fractal::getError()
+const std::string& Fractal::getError()
 {
-    return shaderModel->errorMessage;
+    return shaderModel->get_error();
 }
 
 bool Fractal::isCompiling()
@@ -570,7 +436,7 @@ void Fractal::exportWindow(bool *show)
                 } else if(ImGui::Button("Export"))
                 {
                     exportCompiling = true;
-                    exportParallelTaskManager.runTask([this]() -> std::string
+                    exportParallelTaskManager.runTask([this]()
                                                       {
                                                           try
                                                           {
@@ -581,7 +447,7 @@ void Fractal::exportWindow(bool *show)
                                                           }
                                                           catch(const std::exception &e)
                                                           {
-                                                              return e.what();
+                                                              return std::string(e.what());
                                                           }
                                                       },
                                                       [this](std::string source)

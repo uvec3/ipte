@@ -177,7 +177,6 @@ void saveAll()
                 j["opened"][i]["path"]=path;
             }
 
-            j["opened"][i]["mirror"]=fractals[i]->getMirrorFile();
             if(i==activeFractalIndex)
             {
                 j["opened"][i]["active"]=true;
@@ -196,8 +195,6 @@ void saveAll()
 
     std::ofstream file("cache.json");
     file<<j.dump(4);
-
-
 
     file.close();
 }
@@ -274,11 +271,6 @@ void init_data(nlohmann::json j)
         {
             if(!loadFractal(j["unsaved"][f["unsaved"]]))
                 continue;
-        }
-        if(f.contains("mirror"))
-        {
-            if(!f["mirror"].get<std::string >().empty())
-                fractals.back()->mirrorToFile(f["mirror"]);
         }
         if(f.contains("active")&&f["active"])
         {
@@ -599,7 +591,12 @@ void drawErrorLog()
         if(!fractals.empty()&&activeFractalIndex!=-1)
         {
             if(!fractals[activeFractalIndex]->getError().empty())
-                errorLog.SetText(fractals[activeFractalIndex]->getError());
+            {
+                auto currentMessage=errorLog.GetText();
+                const std::string& message=fractals[activeFractalIndex]->getError();
+                if (currentMessage.substr(0,currentMessage.size()-1)!=message)
+                    errorLog.SetText(message);
+            }
             else if(fractals[activeFractalIndex]->isCompiling())
                 errorLog.SetText("Compiling...");
             else
@@ -671,10 +668,10 @@ void ui()
                 ImGui::DockSpace(ImGui::GetID("DockSpace"), ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
 
                 if(show.debugInfo)
-                    vkbase::imgui::showDebugWindow();
+                    show.debugInfo=vkbase::imgui::showDebugWindow();
 
-                if(show.log)
-                    vkbase::imgui::drawEngineMessagesLog();
+
+                vkbase::imgui::drawEngineMessagesLog(&show.log);
 
                 if(show.errorLog)
                     drawErrorLog();

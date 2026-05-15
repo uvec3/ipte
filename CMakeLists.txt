@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22.1)
 project(IPTE)
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 #Development mode
@@ -13,10 +13,11 @@ else ()
 endif ()
 
 #add shaders and templates dirs to assets
-set(ASSETS ${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders ${CMAKE_CURRENT_SOURCE_DIR}/assets/templates ${CMAKE_CURRENT_SOURCE_DIR}/assets/other)
+set(ASSETS ${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders  ${CMAKE_CURRENT_SOURCE_DIR}/assets/include ${CMAKE_CURRENT_SOURCE_DIR}/assets/templates ${CMAKE_CURRENT_SOURCE_DIR}/assets/other)
 
 add_subdirectory(vkbase)
 add_subdirectory(vkbase/external/SPIRV-Cross)
+find_package(Boost REQUIRED COMPONENTS regex)
 
 set(BUILD_SHARED_LIBS ${WEATHER_SHARED})
     add_subdirectory(External/efsw)
@@ -28,10 +29,11 @@ set(BUILD_SHARED_LIBS ${WEATHER_SHARED})
 set(BUILD_SHARED_LIBS OFF)
 
 add_executable(ipte main.cpp Fractal/ShaderModel.cpp Fractal/ShaderModel.hpp Fractal/ShaderEditor.cpp Fractal/ShaderEditor.hpp
-        Fractal/GLSLCompiler.cpp Fractal/SPIRVCompiler.cpp Fractal/HLSLCompiler.cpp
-        Fractal/FileWatcher.hpp Fractal/FileWatcher.cpp Fractal/Fractal.cpp Fractal/BitmapGenerator.cpp)
+         Fractal/HLSLCompiler.cpp
+        Fractal/FileWatcher.hpp Fractal/FileWatcher.cpp Fractal/Fractal.cpp Fractal/BitmapGenerator.cpp
+        Fractal/Project.cpp Fractal/Project.hpp)
 
-# create intermidiete libs to improve building time
+# create intermediate libs to improve building time
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/dummy.cpp" "")
 add_library(spirv_lib ${WEATHER_SHARED} ${CMAKE_CURRENT_BINARY_DIR}/dummy.cpp)
 add_library(vkbase_lib ${WEATHER_SHARED} ${CMAKE_CURRENT_BINARY_DIR}/dummy.cpp)
@@ -55,6 +57,7 @@ target_link_libraries(ipte
         clip
         spirv_lib
         vkbase_lib
+        Boost::regex
 )
 
 #Copy ddls for shared build

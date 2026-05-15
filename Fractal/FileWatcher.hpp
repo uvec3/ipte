@@ -1,3 +1,5 @@
+#pragma once
+
 #include <efsw/efsw.hpp>
 #include <iostream>
 #include <map>
@@ -17,7 +19,7 @@ enum FileAction {
 
 using FunCallback_T=std::function<void(FileAction)>;
 
-bool addFileToWatch(const std::string& filename, FunCallback_T callback);
-void removeFileFromWatch(const std::string& filename);
+long addFileToWatch(const std::string& filename, FunCallback_T callback);
+void removeFileFromWatch(long watch_id);
 
 

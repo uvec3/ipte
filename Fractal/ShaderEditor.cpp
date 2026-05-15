@@ -1,30 +1,20 @@
 #include "ShaderEditor.hpp"
 #include "imgui_internal.h"
 
-bool ShaderEditor::draw(const std::string& error)
+bool ShaderEditor::draw()
 {
     TextEditor::ErrorMarkers errorMarkers;
-
-    //split by lines
-    size_t begin=0;
-    size_t end=0;
-    while((end=error.find('\n',begin))!=std::string::npos)
+    auto shader_name=currentShader->name;
+    if (!currentShader->isCompiling())
     {
-        size_t num_begin=error.find(':',begin)+1;
-        size_t num_end=error.find(':',num_begin);
-
-        auto lineNumStr=error.substr(num_begin, num_end-num_begin);
-        try
+        if (currentShader->get_frag_result().diagnostics.contains(shader_name))
         {
-            int lineNum = std::stoi(lineNumStr);
-            if(errorMarkers.contains(lineNum))
-                errorMarkers[lineNum] +='\n';
-            errorMarkers[lineNum] += error.substr(num_end + 1, end - num_end - 1);
+            for (auto& [l,err] : currentShader->get_frag_result().diagnostics.at(shader_name).errorLines)
+            {
+                errorMarkers[l]=err.message;
+            }
         }
-        catch (const std::exception&){}
-        begin = end + 1;
     }
-
     mainEditor.SetErrorMarkers(errorMarkers);
 
     try
@@ -55,12 +45,13 @@ bool ShaderEditor::draw(const std::string& error)
 void ShaderEditor::setShader(ShaderModel *shader)
 {
     currentShader = shader;
-    initEditor(mainEditor, shader->getCurrentCompiler());
+    initEditor(mainEditor, shader->language_name);
+    setSourceCode(shader->getSource());
 }
 
 
 
-void ShaderEditor::initEditor(TextEditor& editor, AbstractShaderCompiler& compiler)
+void ShaderEditor::initEditor(TextEditor& editor,const std::string& language)
 {
     //Palette
     auto palette = TextEditor::GetDarkPalette();
@@ -71,14 +62,12 @@ void ShaderEditor::initEditor(TextEditor& editor, AbstractShaderCompiler& compil
 
     editor.SetPalette(palette);
 
-    if(compiler.languageName=="GLSL")
+    if(language=="GLSL")
         editor.SetLanguageDefinition(TextEditor::LanguageDefinition::GLSL());
-    if(compiler.languageName=="HLSL")
+    if(language=="HLSL")
         editor.SetLanguageDefinition(TextEditor::LanguageDefinition::HLSL());
 
     editor.SetShowWhitespaces(false);
-    editor.SetText(compiler.getSource());
-
 }
 
 
@@ -91,5 +80,6 @@ void ShaderEditor::setSourceCode(const std::string &code)
 
 std::string ShaderEditor::getSourceCode()
 {
-    return mainEditor.GetText();
+    auto text=mainEditor.GetText();
+    return text.substr(0,text.size()-1);
 }

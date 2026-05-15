@@ -169,13 +169,14 @@ BitmapGenerator::~BitmapGenerator()
 
 std::vector<uint32_t> BitmapGenerator::compileShader(const std::string &functionHLSL, const std::string &call)
 {
-    std::string shaderHLSL = functionHLSL + "\n" + "float4 main(float4 position ): SV_TARGET{ "
-                                                   "float2 uv=(float2(position.x, -position.y)+1)/2;"
-                             +"return " + call +
-                             ";}";
-    std::string diagnostics;
-    auto spirv = vkbase::ShadersRC::compileShaderSlang(shaderHLSL,"bitmap" ,vkbase::ShadersRC::ShaderType::Fragment, "main", {}, false, diagnostics);
-    return spirv;
+    return{};
+    // std::string shaderHLSL = functionHLSL + "\n" + "float4 main(float4 position ): SV_TARGET{ "
+    //                                                "float2 uv=(float2(position.x, -position.y)+1)/2;"
+    //                          +"return " + call +
+    //                          ";}";
+    // std::string diagnostics;
+    // auto spirv = vkbase::ShadersRC::compileShaderSlang(shaderHLSL,"bitmap" ,vkbase::ShadersRC::ShaderType::Fragment, "main", {}, false, diagnostics);
+    // return spirv;
 }
 
 void BitmapGenerator::createRenderPass()

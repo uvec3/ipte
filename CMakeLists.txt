@@ -1,32 +1,29 @@
-cmake_minimum_required(VERSION 3.22.1)
+cmake_minimum_required(VERSION 3.28 )
 project(IPTE)
 set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-
-#Development mode
-set(DEV OFF CACHE BOOL "Dev build")
-
-if(DEV)#Build shared libs when in DEV mode
-    set(WEATHER_SHARED SHARED)
-else ()
-    set(WEATHER_SHARED "")
-endif ()
 
 #add shaders and templates dirs to assets
 set(ASSETS ${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders  ${CMAKE_CURRENT_SOURCE_DIR}/assets/include ${CMAKE_CURRENT_SOURCE_DIR}/assets/templates ${CMAKE_CURRENT_SOURCE_DIR}/assets/other)
 
-add_subdirectory(vkbase)
-add_subdirectory(vkbase/external/SPIRV-Cross)
-find_package(Boost REQUIRED COMPONENTS regex)
+include(FetchContent)
+FetchContent_Declare(
+        Boost
+        URL https://github.com/boostorg/boost/releases/download/boost-1.84.0/boost-1.84.0.tar.xz
+        URL_MD5 893b5203b862eb9bbd08553e24ff146a
+        DOWNLOAD_EXTRACT_TIMESTAMP ON
+)
+set(BOOST_INCLUDE_LIBRARIES regex multi_index lambda)
+FetchContent_MakeAvailable(Boost)
 
-set(BUILD_SHARED_LIBS ${WEATHER_SHARED})
-    add_subdirectory(External/efsw)
-    add_subdirectory(External/nativefiledialog-extended)
-    # Disable clip examples and tests
-    set(CLIP_EXAMPLES OFF CACHE BOOL "Compile clip examples")
-    set(CLIP_TESTS OFF CACHE BOOL "Compile clip tests")
-    add_subdirectory(External/clip)
-set(BUILD_SHARED_LIBS OFF)
+add_subdirectory(vkbase EXCLUDE_FROM_ALL)
+add_subdirectory(vkbase/external/SPIRV-Cross EXCLUDE_FROM_ALL)
+
+add_subdirectory(External/efsw EXCLUDE_FROM_ALL)
+add_subdirectory(External/nativefiledialog-extended EXCLUDE_FROM_ALL)
+# Disable clip examples and tests
+set(CLIP_EXAMPLES OFF CACHE BOOL "Compile clip examples")
+set(CLIP_TESTS OFF CACHE BOOL "Compile clip tests")
+add_subdirectory(External/clip EXCLUDE_FROM_ALL)
 
 add_executable(ipte main.cpp Fractal/ShaderModel.cpp Fractal/ShaderModel.hpp Fractal/ShaderEditor.cpp Fractal/ShaderEditor.hpp
          Fractal/HLSLCompiler.cpp
@@ -59,15 +56,6 @@ target_link_libraries(ipte
         spirv_lib
         vkbase_lib
         Boost::regex
+        Boost::multi_index
+        Boost::lambda
 )
-
-#Copy ddls for shared build
-if(WEATHER_SHARED)
-    add_custom_command(
-            TARGET ipte POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E echo "Copying runtime DLLs for ipte"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            $<TARGET_RUNTIME_DLLS:ipte> $<TARGET_FILE_DIR:ipte>
-            COMMAND_EXPAND_LISTS
-    )
-endif()

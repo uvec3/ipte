@@ -141,7 +141,7 @@ void Fractal::deserialize(const nlohmann::json &j)
         std::copy(cacheData.begin(),cacheData.end(),cachePtr);
     }
     shaderEditor->setShader(shaderModel.get());
-    shaderModel->slang_project.setRoot( savePath.empty()? ".":savePath );
+    shaderModel->slang_project.setRoot( savePath);
 }
 
 bool Fractal::load(const std::string &path)

@@ -21,7 +21,7 @@ public:
     std::unordered_set<std::filesystem::path> modifiedFiles;
     std::unordered_map<std::filesystem::path,std::filesystem::path> renamedFiles;
 
-    Project():projectRoot("."){}
+    Project():projectRoot(){}
     ~Project();
     void updateDependencies(const std::string& src);
     void create_builtin_file(const fs::path& file) const;

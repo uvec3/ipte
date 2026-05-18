@@ -576,16 +576,20 @@ void ShaderModel::recompile()
     slang_project.updateDependencies(m_source);
 
     status = COMPILING;
-    auto paths =  std::vector{slang_project.getRoot().string()};
+    auto paths =  slang_project.getRoot().empty()? std::vector<std::string>{} : std::vector{slang_project.getRoot().string()};
 
-    compilationTaskManager.runTask([name=name,src=m_source,paths=paths,currentCompiler=currentCompiler.get(),setLayout2=descriptorSet2Layout]
+    compilationTaskManager.runTask([name=name,src=m_source,
+        paths=paths,
+        currentCompiler=currentCompiler.get(),
+        setLayout2=descriptorSet2Layout,
+        root_path=slang_project.getRoot().generic_string()]
     {
         std::cout << "+Compilation started:" << name << "\n";
 
         vkbase::ShadersRC::CompilationResult frag_result{};
         vkbase::ShadersRC::CompilationResult compute_result{};
-        compute_result = currentCompiler->compileCompute(src, name, paths);
-        frag_result = currentCompiler->compile(src, name, paths);
+        compute_result = currentCompiler->compileCompute(src, name, root_path, paths);
+        frag_result = currentCompiler->compile(src, name, root_path, paths);
 
 
         std::string reflection;
@@ -1471,7 +1475,6 @@ void ShaderModel::writeCommandBuffer(VkCommandBuffer cbMain, uint32_t imageIndex
         vkCmdExecuteCommands(cbMain, 1, &cbRender[imageIndex]);
     }
 }
-
 
 
 void ShaderModel::updateUniform(uint32_t imageIndex)

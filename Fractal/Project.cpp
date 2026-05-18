@@ -16,6 +16,9 @@ Project::~Project()
 
 void Project::updateDependencies(const std::string& src)
 {
+    if (projectRoot.empty())
+        return;
+
     auto newDependencies= getDependencies(src,projectRoot);
 
     for (auto it = dependencies.begin(); it != dependencies.end(); )
@@ -119,7 +122,7 @@ std::unordered_set<std::filesystem::path> Project::getDependencies(const std::st
 std::vector<std::string> Project::readDependencies(const std::string& src)
 {
     std::vector<std::string> included_files;
-    boost::regex include_regex(R"(^\s*#include\s*["<]([^">]+)[">])");
+    boost::regex include_regex(R"regex(^\s*#\s*include\s*"([^"]+)")regex");
     boost::sregex_iterator it(src.begin(), src.end(), include_regex);
     boost::sregex_iterator end;
 

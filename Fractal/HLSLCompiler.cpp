@@ -2,7 +2,9 @@
 
 #include <shaderc/shaderc.hpp>
 #include <iostream>
+#include <fstream>
 
+#include "../vkbase/extensions/Assets/assets.h"
 #include "../vkbase/extensions/ShadersRC/slang/ShaderCompilerSlang.hpp"
 
 //find "Type output(.....) {"
@@ -177,8 +179,48 @@ std::map<std::string,std::string> exportDefines={
         },
 };
 
+using namespace std::literals::string_literals;
 
-vkbase::ShadersRC::CompilationResult HLSLCompiler::compile(const std::string& src, const std::string& name, const std::vector<std::string>& paths)
+
+const std::string assets_prefix = "___assets___/"s;
+
+
+vkbase::ShadersRC::FnLoadFile loadFN(const std::string& includePath)
+{
+    if (includePath.empty())
+    {
+        return[](const std::string& file)
+        {
+            if (file.substr(0,assets_prefix.length())==assets_prefix)
+                return std::string(vkbase::assets::get("include/"+file.substr(assets_prefix.length())));
+            else
+                return std::string(vkbase::assets::get("include/"+file));
+        };
+    }
+
+    return[=](const std::string& file)
+    {
+        if (file.substr(0,assets_prefix.length())!=assets_prefix)
+        {
+            std::ifstream f(includePath+"/"+file);
+            if (f)
+            {
+                return std::string(std::istreambuf_iterator<char>(f),std::istreambuf_iterator<char>());
+            }
+            return std::string(vkbase::assets::get("include/"+file));
+        }
+        else
+        {
+            auto data= std::string(vkbase::assets::get("include/"+file.substr(assets_prefix.length())));
+            if (!data.empty())
+                return  data;
+            return std::string(vkbase::assets::get("include/"+file));
+        }
+
+    };
+}
+
+vkbase::ShadersRC::CompilationResult HLSLCompiler::compile(const std::string& src, const std::string& name, const std::string& includePath, const std::vector<std::string>& paths)
 {
     vkbase::ShadersRC::CompilationParameters  info;
     info.compile_debug=true;
@@ -187,8 +229,9 @@ vkbase::ShadersRC::CompilationResult HLSLCompiler::compile(const std::string& sr
     info.fileName=name;
     info.source=src;
     info.type=vkbase::ShadersRC::ShaderType::Fragment;
-    info.includePaths=paths;
+    info.includePaths={assets_prefix};
     info.parse_diagnostics=true;
+    info.loadFileFn=loadFN(includePath);
     auto result=vkbase::ShadersRC::compileShaderSlang(info);
 
     auto optimized= std::move(result.spirv_debug);
@@ -207,7 +250,7 @@ HLSLCompiler::HLSLCompiler()
     languageName="HLSL";
 }
 
-vkbase::ShadersRC::CompilationResult HLSLCompiler::compileCompute(const std::string& src, const std::string& name, const std::vector<std::string>& paths)
+vkbase::ShadersRC::CompilationResult HLSLCompiler::compileCompute(const std::string& src, const std::string& name, const std::string& includePath, const std::vector<std::string>& paths)
 {
     auto code=src+"[numthreads(1, 1, 1)]void ___update___(){UpdateParameters(___parameters___[0]);}";
 
@@ -217,19 +260,20 @@ vkbase::ShadersRC::CompilationResult HLSLCompiler::compileCompute(const std::str
     info.entryPointName="___update___";
     info.fileName=name;
     info.source=code;
-    info.includePaths=paths;
+    info.includePaths={assets_prefix};
     info.type= vkbase::ShadersRC::ShaderType::Compute;
     info.parse_diagnostics=true;
+    info.loadFileFn=loadFN(includePath);
 
     auto result=vkbase::ShadersRC::compileShaderSlang(info);
     result.spirv=std::move(result.spirv_debug);
     return result;
 }
 
-vkbase::ShadersRC::CompilationResult HLSLCompiler::compileForExport(const std::string& src, const std::string& name, const std::vector<std::string>& paths,
+vkbase::ShadersRC::CompilationResult HLSLCompiler::compileForExport(const std::string& src, const std::string& name, const std::string& includePath,
+                                                                    const std::vector<std::string>& paths,
                                                                     std::string funcName,
-                                                                    std::string additionalArguments,
-                                                                    std::string parametersInit)
+                                                                    std::string additionalArguments, std::string parametersInit)
 {
     auto code=src;
     size_t openingParenthesis, closingParenthesis, closingBrace;
@@ -265,8 +309,9 @@ vkbase::ShadersRC::CompilationResult HLSLCompiler::compileForExport(const std::s
     info.entryPointName="output";
     info.fileName=name;
     info.source=code;
-    info.includePaths=paths;
+    info.includePaths={assets_prefix};
     info.type= vkbase::ShadersRC::ShaderType::Fragment;
+    info.loadFileFn=loadFN(includePath);
     //info.parse_diagnostics=false;
     return vkbase::ShadersRC::compileShaderSlang(info);
 }

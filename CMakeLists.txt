@@ -51,6 +51,7 @@ target_link_libraries(vkbase_lib
 #Linking app
 target_link_libraries(ipte
         ShadersRC
+        vkbase::assets
         ShadersSlang
         efsw
         nfd

@@ -8,6 +8,8 @@
 #include <variant>
 #include <shaderc/shaderc.hpp>
 
+#include "../vkbase/extensions/Assets/assets.h"
+
 
 class NonConvertible{};
 
@@ -1255,7 +1257,7 @@ void ShaderModel::createCommandPool()
 VkPipeline ShaderModel::createGraphicsPipeline(const std::vector<uint32_t> &frag_shader, VkPipelineLayout layout)
 {
     //create shader modules
-    VkShaderModule vertShaderModule = vkbase::loadPrecompiledShader("shaders/vert");
+    VkShaderModule vertShaderModule = vkbase::createShaderModule(vkbase::assets::get( "shaders/vert.spv"));
     VkShaderModule fragShaderModule = vkbase::createShaderModule(frag_shader);
 
 

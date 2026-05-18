@@ -1,6 +1,7 @@
 #include "BitmapGenerator.hpp"
 #include <stdexcept>
 #include "../vkbase/core/EngineBase.h"
+#include "../vkbase/extensions/Assets/assets.h"
 #include "../vkbase/extensions/ShadersRC/ShadersRC.hpp"
 #include "../vkbase/extensions/ShadersRC/slang/ShaderCompilerSlang.hpp"
 
@@ -287,7 +288,7 @@ void BitmapGenerator::createPipeline(const std::vector<uint32_t> &spirv)
     }
 
     //create shader modules
-    VkShaderModule vertShaderModule = vkbase::loadPrecompiledShader("shaders/VERT_shader.vert");
+    VkShaderModule vertShaderModule = vkbase::createShaderModule( vkbase::assets::get("shaders/vert.spv"));
     VkShaderModule fragShaderModule = vkbase::createShaderModule(spirv);
 
     VkPipelineShaderStageCreateInfo vertShaderStageInfo{};

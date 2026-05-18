@@ -101,7 +101,6 @@ void Fractal::drawEditor(bool *open)
 
 void Fractal::initHLSL()
 {
-    shaderModel->setSource(vkbase::assets["shaders/frag.hlsl"]);
     shaderEditor->setShader(shaderModel.get());
 }
 

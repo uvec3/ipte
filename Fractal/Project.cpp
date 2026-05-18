@@ -4,6 +4,8 @@
 #include <ranges>
 #include <utility>
 
+#include "../vkbase/extensions/Assets/assets.h"
+
 Project::~Project()
 {
     for (auto& wid: dependencies| views::values)
@@ -45,15 +47,15 @@ void Project::create_builtin_file(const fs::path& file) const
     if (!fs::exists(file))
     {
         auto relative_path=file.lexically_relative(projectRoot);
-        auto asset_it=vkbase::assets.find("include/"+relative_path.generic_string());
-        if(asset_it!=vkbase::assets.end())
+        auto file_data=vkbase::assets::get("include/"+relative_path.generic_string());
+        if(!file_data.empty())
         {
             std::filesystem::create_directories(file.parent_path());
             std::ofstream f(file);
             if (!f)
                 std::cout<<"Failed to create "<< file.generic_string()<<"\n";
             else
-                f.write(asset_it->second.data(),asset_it->second.size());
+                f.write(file_data.data(),file_data.size());
             if (f)
             {
                 std::cout<<"Created std file: "<< file.generic_string()<<"\n";

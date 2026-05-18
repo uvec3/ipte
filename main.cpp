@@ -6,6 +6,8 @@
 #include "Fractal/Fractal.hpp"
 #include <filesystem>
 
+#include "vkbase/extensions/Assets/assets.h"
+
 struct Show
 {
     bool any= true;
@@ -29,25 +31,6 @@ nlohmann::json cacheData;
 std::deque<Fractal*> lastTabs;
 bool ctrlTabMode = false;
 int lastTabOffset = 0;
-
-std::map<std::string,std::map<std::string ,std::string>> templates;
-
-void initTemplates()
-{
-    for(auto& [path, data]:vkbase::assets)
-    {
-        std::string prefix = "templates/";
-        if(path.starts_with(prefix))
-        {
-            auto pos = path.find('/',prefix.size());
-            std::string category = path.substr(prefix.size(),pos-prefix.size());
-            std::string name = path.substr(pos+1);
-            if(name.ends_with(".fract"))
-                name = name.substr(0,name.size()-6);
-            templates[category][name]=data;
-        }
-    }
-}
 
 int getIndexOfFractal(const Fractal* fractal)
 {
@@ -298,7 +281,7 @@ nlohmann::json load_json()
         if(file)
             file >> j;
         else
-            j=nlohmann::json::parse(vkbase::assets["other/cache.json"]);
+            j=nlohmann::json::parse(vkbase::assets::get("other/cache.json"));
         file.close();
 
         return j;
@@ -345,6 +328,30 @@ void closeFractal(int fractalToClose)
 }
 
 
+void newTemplateMenu(const std::string& path)
+{
+    auto dir=vkbase::assets::directory(path);
+    for (auto entry:dir)
+    {
+        std::string entry_path=path+"/"+entry.filename();
+        if (entry.is_directory())
+        {
+            if(ImGui::BeginMenu(entry.filename().c_str()))
+            {
+                newTemplateMenu(entry_path);
+                ImGui::EndMenu();
+            }
+        }
+        else
+        {
+            if(ImGui::MenuItem(entry.filename().c_str()))
+            {
+                newFractal(entry.filename(),nlohmann::json::parse(vkbase::assets::get(entry_path)));
+            }
+        }
+    }
+}
+
 void drawMenuBarUI()
 {
     static bool showMenu = true;
@@ -369,20 +376,7 @@ void drawMenuBarUI()
             if(ImGui::BeginMenu("New", "Ctrl+N"))
             {
 
-                for(auto& [category, t]:templates)
-                {
-                    if(ImGui::BeginMenu(category.c_str()))
-                    {
-                        for(auto& [name, data]:t)
-                        {
-                            if(ImGui::MenuItem(name.c_str()))
-                            {
-                                newFractal(name,nlohmann::json::parse(data));
-                            }
-                        }
-                        ImGui::EndMenu();
-                    }
-                }
+                newTemplateMenu("templates");
                 ImGui::EndMenu();
             }
             if(ImGui::MenuItem("Open", "Ctrl+O"))
@@ -753,11 +747,9 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** args)
         }
 
         vkbase::init("IPTE");//init engine
-
         vkbase::imgui::initIMGUI();//init imgui
         vkbase::imgui::registerEngineMessagesLog();//copy engine messages to imgui log window
         NFD_Init();//init native file dialog
-        initTemplates();
         initErrorLog();
 
         vkbase::imgui::setDefaultFontSize(16);
@@ -798,4 +790,14 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** args)
     }
 
     return EXIT_SUCCESS;
+}
+
+
+
+
+namespace boost {
+    void throw_exception(std::exception const & e) {
+        std::cerr << "Boost Exception: " << e.what() << std::endl;
+        std::terminate();
+    }
 }

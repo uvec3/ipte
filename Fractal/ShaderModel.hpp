@@ -1,10 +1,12 @@
 #pragma once
 #include <string>
 #include <vulkan/vulkan.h>
+#include <vulkan/vulkan.hpp>
 #include <vector>
 #include <atomic>
 #include <cstdint>
 #include <thread>
+#include <memory>
 #include "AbstractShaderCompiler.h"
 #include <vulkan/vulkan.h>
 #include "../vkbase/core/EngineBase.h"
@@ -167,7 +169,7 @@ private:
     bool cbRenderValid = false;
     bool updateCommandBuffers = false;
 
-    VkDescriptorSetLayout descriptorSet2Layout;
+    std::shared_ptr<vk::UniqueDescriptorSetLayout> descriptorSet2Layout;
     std::vector<VkDescriptorSet> descriptorSets2;
 
     vkbase::Buffer parametersIntermediateBuffer;
@@ -185,7 +187,7 @@ private:
     int prepareCallbackId = -1;
     int updateExtentCallbackId = -1;
     std::atomic<bool> isChanged = false;
-    std::unique_ptr<AbstractShaderCompiler> currentCompiler = nullptr;
+    AbstractShaderCompiler* currentCompiler = nullptr;
     vkbase::ShadersRC::CompilationResult fragment_shader;
     vkbase::ShadersRC::CompilationResult compute_shader;
     std::string newUniformParametersReflection;

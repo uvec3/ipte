@@ -333,7 +333,7 @@ std::string UniformParameters::dynamicParametersString()
 
 ShaderModel::ShaderModel(std::string name) : name(std::move(name))
 {
-    currentCompiler = std::make_unique<HLSLCompiler>();
+    currentCompiler = &hlsl_compiler;
     keysBuffer.create(sizeof(keys), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
@@ -578,9 +578,11 @@ void ShaderModel::recompile()
     status = COMPILING;
     auto paths =  slang_project.getRoot().empty()? std::vector<std::string>{} : std::vector{slang_project.getRoot().string()};
 
-    compilationTaskManager.runTask([name=name,src=m_source,
+    compilationTaskManager.runTask([
+        name=name,
+        src=m_source,
         paths=paths,
-        currentCompiler=currentCompiler.get(),
+        currentCompiler=currentCompiler,
         setLayout2=descriptorSet2Layout,
         root_path=slang_project.getRoot().generic_string()]
     {
@@ -609,7 +611,7 @@ void ShaderModel::recompile()
 
             try
             {
-                pipeline_data=PipelineData(frag_result.spirv,compute_result.spirv,setLayout2);
+                pipeline_data=PipelineData(frag_result.spirv,compute_result.spirv,setLayout2->get());
             }
             catch (std::exception &e)
             {
@@ -704,7 +706,7 @@ void ShaderModel::loadFromJson(const nlohmann::json &json)
         m_source=json.at("compilers").at(0).at("source");
 
     if(language_name == "HLSL")
-        currentCompiler=std::make_unique<HLSLCompiler>();
+        currentCompiler=&hlsl_compiler;
     else
         throw std::runtime_error("Unsupported shader language: " + language_name);
 
@@ -816,16 +818,15 @@ void ShaderModel::createDescriptorSetLayout2()
     layoutInfo.bindingCount = std::size(bindings);
     layoutInfo.pBindings = bindings;
 
-    if(vkCreateDescriptorSetLayout(vkbase::device, &layoutInfo, nullptr, &descriptorSet2Layout) != VK_SUCCESS)
-    {
-        throw std::runtime_error("Failed to create descriptor set 2 layout!");
-    }
+
+    auto ds=vk::Device(vkbase::device).createDescriptorSetLayoutUnique(layoutInfo);
+    descriptorSet2Layout=std::make_shared<vk::UniqueDescriptorSetLayout>(std::move(ds));
 }
 
 void ShaderModel::createDescriptorSets2()
 {
     descriptorSets2.resize(vkbase::imageCount);
-    std::vector<VkDescriptorSetLayout> layouts(vkbase::imageCount, descriptorSet2Layout);
+    std::vector<VkDescriptorSetLayout> layouts(vkbase::imageCount, descriptorSet2Layout->get());
 
     VkDescriptorSetAllocateInfo allocInfo{.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
     allocInfo.descriptorPool = descriptorPoolStatic;
@@ -1493,7 +1494,6 @@ void ShaderModel::destroy()
 
     vkDestroyDescriptorPool(vkbase::device, descriptorPoolDynamic, nullptr);
     vkDestroyDescriptorPool(vkbase::device, descriptorPoolStatic, nullptr);
-    vkDestroyDescriptorSetLayout(vkbase::device, descriptorSet2Layout,nullptr);
     vkDestroyFence(vkbase::device, computeFence, nullptr);
     parametersIntermediateBuffer.destroy();
     keysBuffer.destroy();

@@ -18,3 +18,5 @@ public:
                                                           std::string additionalArguments, std::string parametersInit) override;
 };
 
+extern HLSLCompiler hlsl_compiler;
+

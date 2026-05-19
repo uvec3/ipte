@@ -7,6 +7,9 @@
 #include "../vkbase/extensions/Assets/assets.h"
 #include "../vkbase/extensions/ShadersRC/slang/ShaderCompilerSlang.hpp"
 
+
+HLSLCompiler hlsl_compiler;
+
 //find "Type output(.....) {"
 size_t findOutputFunction(const std::string& source,size_t& openingParenthesis, size_t& closingParenthesis,size_t& closingBrace)
 {

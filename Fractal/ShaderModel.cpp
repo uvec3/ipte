@@ -584,15 +584,27 @@ void ShaderModel::recompile()
         paths=paths,
         currentCompiler=currentCompiler,
         setLayout2=descriptorSet2Layout,
-        root_path=slang_project.getRoot().generic_string()]
+        root_path=slang_project.getRoot().generic_string()](std::stop_token stop_token)
     {
         std::cout << "+Compilation started:" << name << "\n";
 
         vkbase::ShadersRC::CompilationResult frag_result{};
         vkbase::ShadersRC::CompilationResult compute_result{};
-        compute_result = currentCompiler->compileCompute(src, name, root_path, paths);
+        std::thread t([&]()        {
+            compute_result = currentCompiler->compileCompute(src, name, root_path, paths);
+        });
+
         frag_result = currentCompiler->compile(src, name, root_path, paths);
 
+        t.join();
+
+        if (stop_token.stop_requested())
+        {
+            std::cout<< "-Compilation cancelled:" << name << " \n";
+            return std::tuple{
+                frag_result, compute_result, std::string(), PipelineData{}
+            };
+        }
 
         std::string reflection;
         if (frag_result.success && compute_result.success)

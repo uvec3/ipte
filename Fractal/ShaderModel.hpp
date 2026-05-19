@@ -193,7 +193,7 @@ private:
     std::string newUniformParametersReflection;
 
 
-    ParallelTaskManager compilationTaskManager{1,1,true};
+    ParallelTaskManager compilationTaskManager{3,1,true};
 
 
 public:

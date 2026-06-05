@@ -60,7 +60,7 @@ std::vector<uint32_t> BitmapGenerator::getBitmap()
         return {};
     }
 
-    imageBufferHost.create(width*height*4, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    imageBufferHost=vkbase::Buffer(width*height*4, VK_BUFFER_USAGE_TRANSFER_DST_BIT,VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 
 
     //allocate command buffer
@@ -121,7 +121,7 @@ std::vector<uint32_t> BitmapGenerator::getBitmap()
         region.imageOffset = {0, 0, 0};
         region.imageExtent = {static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1};
 
-        vkCmdCopyImageToBuffer(cb, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, imageBufferHost.buffer, 1, &region);
+        vkCmdCopyImageToBuffer(cb, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, imageBufferHost, 1, &region);
 
         barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
         barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
@@ -158,7 +158,7 @@ std::vector<uint32_t> BitmapGenerator::getBitmap()
     auto * data = reinterpret_cast<uint32_t*> (imageBufferHost.map());
     std::vector<uint32_t> bitmap(data, data + width*height);
     imageBufferHost.unmap();
-    imageBufferHost.destroy();
+    // imageBufferHost.destroy();
 
     return bitmap;
 }

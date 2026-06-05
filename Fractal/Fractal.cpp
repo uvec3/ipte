@@ -5,6 +5,7 @@
 #include "../External/clip/clip.h"
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "../External/stb/stb_image_write.h"
+#include "StructDataEdit.hpp"
 
 
 Fractal::Fractal()
@@ -228,30 +229,21 @@ void Fractal::setRenderArea(float x, float y, float w, float h)
 template<typename T>
 void setIfContains(std::map<std::string, UniformParameter>& p,const std::string typeName, const std::string& name, T value)
 {
-    if(p.contains(name)&&p[name].type==typeName)
-    {
-        p[name].get<T>()=value;
-    }
+    // if(p.contains(name)&&p[name].type==typeName)
+    // {
+    //     p[name].get<T>()=value;
+    // }
 }
 
 void Fractal::processInput()
 {
     ImGuiIO& io = ImGui::GetIO();
-    auto& p=shaderModel->uniformParameters.activeParameters;
+    auto& p=shaderModel->uniformParameters;
 
-    //
-    if(p.contains("extent")&&p["extent"].type=="vec2")
-        p["extent"].get<glm::vec2>()=glm::vec2((vkbase::extent.width)*shaderModel->getViewArea().z,vkbase::extent.height*shaderModel->getViewArea().w);
-    if(p.contains("t")&&p["t"].type=="float")
-        p["t"].get<float>()+=io.DeltaTime;
-    if(p.contains("dt")&&p["dt"].type=="float")
-        p["dt"].get<float>()=io.DeltaTime;
-    if(p.contains("t")&&p["t"].type=="double")
-        p["t"].get<double>()+=io.DeltaTime;
-    if(p.contains("dt")&&p["dt"].type=="double")
-        p["dt"].get<double>()=io.DeltaTime;
+    p.setParameterIfExists("dt",io.DeltaTime);
+    p.setParameterIfExists("extent",glm::vec2((vkbase::extent.width)*shaderModel->getViewArea().z,vkbase::extent.height*shaderModel->getViewArea().w));
 
-    //mouse data
+    // //mouse data
     if(!io.WantCaptureMouse)
     {
         //mouse pos inside viewport
@@ -259,34 +251,20 @@ void Fractal::processInput()
         float relativePosY=+io.MousePos.y- ImGui::GetWindowViewport()->Pos.y;
 
 
-        if(p.contains("mouse_pos")&&p["mouse_pos"].type=="vec2")
-            p["mouse_pos"].get<glm::vec2>()=glm::vec2(relativePosX,relativePosY);
-        if(p.contains("mouse_delta")&&p["mouse_delta"].type=="vec2")
-            p["mouse_delta"].get<glm::vec2>()=glm::vec2(io.MouseDelta.x,io.MouseDelta.y);
-        if(p.contains("mouse_wheel_delta")&&p["mouse_wheel_delta"].type=="float")
-            p["mouse_wheel_delta"].get<float>()=io.MouseWheel;
 
-        if(p.contains("mouse_pos")&&p["mouse_pos"].type=="dvec2")
-            p["mouse_pos"].get<glm::dvec2>()=glm::dvec2(relativePosX,relativePosY);
-        if(p.contains("mouse_delta")&&p["mouse_delta"].type=="dvec2")
-            p["mouse_delta"].get<glm::dvec2>()=glm::dvec2(io.MouseDelta.x,io.MouseDelta.y);
-        if(p.contains("mouse_wheel_delta")&&p["mouse_wheel_delta"].type=="double")
-            p["mouse_wheel_delta"].get<double>()=io.MouseWheel;
-
-        if(p.contains("lmb_down")&&p["lmb_down"].type=="int")
-            p["lmb_down"].get<uint32_t>()=io.MouseDown[0];
-        if(p.contains("rmb_down")&&p["rmb_down"].type=="int")
-            p["rmb_down"].get<uint32_t>()=io.MouseDown[1];
-        if(p.contains("mmb_down")&&p["mmb_down"].type=="int")
-            p["mmb_down"].get<uint32_t>()=io.MouseDown[2];
+        p.setParameterIfExists("mouse_pos",glm::vec2(relativePosX,relativePosY));
+        p.setParameterIfExists("mouse_delta",glm::vec2(io.MouseDelta.x,io.MouseDelta.y));
+        p.setParameterIfExists("mouse_wheel_delta",io.MouseWheel);
+        p.setParameterIfExists("lmb_down",io.MouseDown[0]?1:0);
+        p.setParameterIfExists("rmb_down",io.MouseDown[1]?1:0);
+        p.setParameterIfExists("mmb_down",io.MouseDown[2]?1:0);
     }
     else
     {
-        setIfContains(p, "mouse_delta","vec2", glm::vec2(0));
-        setIfContains(p, "mouse_wheel_delta","float", 0);
-
-        setIfContains(p, "mouse_delta","dvec2", glm::dvec2(0));
-        setIfContains(p, "mouse_wheel_delta","double", 0);
+        p.setParameterIfExists("mouse_wheel_delta",0);
+        p.setParameterIfExists("lmb_down",0);
+        p.setParameterIfExists("rmb_down",0);
+        p.setParameterIfExists("mmb_down",0);
     }
 
 
@@ -334,78 +312,34 @@ void Fractal::parametersUi(bool *showParameters)
         {
             float floatSpeed=0.01;
             float intSpeed=0.1;
-            std::map<int, UniformParameter*> sortedParameters;
-            for(auto&[n,p]: shaderModel->uniformParameters.activeParameters)
+
+            for (auto& [b_id,binding]:shaderModel->uniformParameters.bindings)
             {
-                sortedParameters[p.offset]=&p;
+                ImGui::PushID(b_id);
+                if (ImGui::CollapsingHeader(binding.struct_field.name.c_str()))
+                {
+                    vkbase::Buffer& buffer=shaderModel->uniformParameters.localBuffers->buffers[b_id];
+                    void* data=buffer.map();
+
+                    auto draw_tooltip=[](std::function<void()> draw)
+                    {
+                        if (ImGui::BeginTooltip())
+                        {
+                            draw();
+                            ImGui::EndTooltip();
+                        }
+
+                    };
+
+                    auto width=ImGui::GetContentRegionAvail().x;
+                    editStructFieldDynamic(binding.struct_field,data,std::move(draw_tooltip),width);
+
+
+                    buffer.unmap();
+                }
+                ImGui::PopID();
             }
 
-            for(auto&[off,p]: sortedParameters)
-            {
-                if(p->isDynamic)
-                    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0.4,0.3));
-                else
-                    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                if(ImGui::Button((std::string(p->isDynamic ? "D" : "S") + "###" + p->name).c_str()))
-                {
-                    p->isDynamic=!p->isDynamic;
-                }
-                ImGui::PopStyleColor();
-                if(ImGui::IsItemHovered())
-                {
-                    ImGui::BeginTooltip();
-                    if(p->isDynamic)
-                        ImGui::Text("Dynamic parameter. This parameter will be exported as function argument");
-                    else
-                        ImGui::Text("Static parameter. This parameter will be replaced with constant in exported function");
-                    ImGui::EndTooltip();
-                }
-
-                ImGui::SameLine();
-
-                const char* floatFormat="%.5f";
-                const std::string& name=p->name;
-                if(p->type=="int")
-                    ImGui::DragInt(name.c_str(), reinterpret_cast<int*>(p->data.data()), intSpeed);
-                else if(p->type=="float")
-                    ImGui::DragFloat(name.c_str(), reinterpret_cast<float *>(p->data.data()), floatSpeed, 0, 0, floatFormat);
-                else if(p->type=="double")
-                    ImGui::DragScalar(name.c_str(), ImGuiDataType_Double, &p->get<double>(), floatSpeed, 0, 0, floatFormat);
-                else if(p->type=="uint")
-                    ImGui::DragScalar(name.c_str(), ImGuiDataType_U32, &p->get<uint32_t>(), intSpeed);
-                else if(p->type=="vec2")
-                    ImGui::DragFloat2(name.c_str(), reinterpret_cast<float *>(p->data.data()), floatSpeed, 0, 0, floatFormat);
-                else if(p->type=="vec3")
-                {
-                    ImGui::DragFloat3(name.c_str(), reinterpret_cast<float *>(p->data.data()), floatSpeed, 0, 0, floatFormat);
-                    ImGui::ColorEdit3(("###"+name+" color").c_str(), reinterpret_cast<float *>(p->data.data()));
-                }
-                else if(p->type=="vec4")
-                {
-                    ImGui::DragFloat4(name.c_str(), reinterpret_cast<float *>(p->data.data()), floatSpeed, 0, 0, floatFormat);
-                    ImGui::ColorEdit4(("###"+name+" color").c_str(), reinterpret_cast<float *>(p->data.data()));
-                }
-                else if(p->type=="dvec2")
-                    ImGui::DragScalarN(name.c_str(), ImGuiDataType_Double, p->data.data(), 2, floatSpeed, 0, 0, floatFormat);
-                else if(p->type=="dvec3")
-                    ImGui::DragScalarN(name.c_str(), ImGuiDataType_Double, p->data.data(), 3, floatSpeed, 0, 0, floatFormat);
-                else if(p->type=="dvec4")
-                    ImGui::DragScalarN(name.c_str(), ImGuiDataType_Double, p->data.data(), 4, floatSpeed, 0, 0, floatFormat);
-                else if(p->type=="ivec2")
-                    ImGui::DragScalarN(name.c_str(), ImGuiDataType_S32, p->data.data(), 2, intSpeed);
-                else if(p->type=="ivec3")
-                    ImGui::DragScalarN(name.c_str(), ImGuiDataType_S32, p->data.data(), 3, intSpeed);
-                else if(p->type=="ivec4")
-                    ImGui::DragScalarN(name.c_str(), ImGuiDataType_S32, p->data.data(), 4, intSpeed);
-                else if(p->type=="uvec2")
-                    ImGui::DragScalarN(name.c_str(), ImGuiDataType_U32, p->data.data(), 2, intSpeed);
-                else if(p->type=="uvec3")
-                    ImGui::DragScalarN(name.c_str(), ImGuiDataType_U32, p->data.data(), 3, intSpeed);
-                else if(p->type=="uvec4")
-                    ImGui::DragScalarN(name.c_str(), ImGuiDataType_U32, p->data.data(), 4, intSpeed);
-                else
-                    ImGui::Text("Parameter: %s has unsupported type %s (off=%d, size=%zu)", name.c_str(), p->type.c_str(), p->offset, p->data.size());
-            }
         }
         ImGui::End();
     }
@@ -434,30 +368,19 @@ void Fractal::exportWindow(bool *show)
                     ImGui::Text("Compiling...");
                 } else if(ImGui::Button("Export"))
                 {
-                    exportCompiling = true;
-                    exportParallelTaskManager.runTask([this]()
-                                                      {
-                                                          try
-                                                          {
-                                                                if(cache.exportType==0)
-                                                                    return shaderModel->exportOutput("generated", "HLSL", cache.exportOnlyBody);
-                                                                else
-                                                                    return shaderModel->exportOutput("generated", "GLSL", cache.exportOnlyBody);
-                                                          }
-                                                          catch(const std::exception &e)
-                                                          {
-                                                              return std::string(e.what());
-                                                          }
-                                                      },
-                                                      [this](std::string source)
-                                                      {
-                                                          exportResult.SetText(source);
-                                                          exportCompiling = false;
-                                                      });
+                    exportCompiling=true;
+
+                    shaderModel->exportOutput( "output", "export_result",
+                                               cache.exportType==0?"HLSL":"GLSL", {{0,"P.p.a"},{0,"P.p.t"}}, [this](auto result)
+                                               {
+                                                   exportCompiling=false;
+                                                   if (result.success)
+                                                       exportResult.SetText(std::move(result.code));
+                                                   else
+                                                       exportResult.SetText(std::move(result.debug));
+                                               }
+                    );
                 }
-
-
-                exportParallelTaskManager.finish();
 
                 if(ImGui::Button("Copy to clipboard"))
                 {

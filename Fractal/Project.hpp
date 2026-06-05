@@ -11,7 +11,6 @@
 #include "../vkbase/core/EngineBase.h"
 
 namespace fs=std::filesystem;
-using namespace std::ranges;
 
 class Project
 {

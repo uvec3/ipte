@@ -1,5 +1,4 @@
 #include "ShaderEditor.hpp"
-#include "imgui_internal.h"
 
 bool ShaderEditor::draw()
 {

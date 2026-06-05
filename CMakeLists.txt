@@ -12,7 +12,7 @@ FetchContent_Declare(
         URL_MD5 893b5203b862eb9bbd08553e24ff146a
         DOWNLOAD_EXTRACT_TIMESTAMP ON
 )
-set(BOOST_INCLUDE_LIBRARIES regex multi_index lambda)
+set(BOOST_INCLUDE_LIBRARIES regex multi_index lambda algorithm)
 FetchContent_MakeAvailable(Boost)
 
 add_subdirectory(vkbase EXCLUDE_FROM_ALL)
@@ -25,10 +25,16 @@ set(CLIP_EXAMPLES OFF CACHE BOOL "Compile clip examples")
 set(CLIP_TESTS OFF CACHE BOOL "Compile clip tests")
 add_subdirectory(External/clip EXCLUDE_FROM_ALL)
 
-add_executable(ipte main.cpp Fractal/ShaderModel.cpp Fractal/ShaderModel.hpp Fractal/ShaderEditor.cpp Fractal/ShaderEditor.hpp
-         Fractal/HLSLCompiler.cpp
-        Fractal/FileWatcher.hpp Fractal/FileWatcher.cpp Fractal/Fractal.cpp Fractal/BitmapGenerator.cpp
-        Fractal/Project.cpp Fractal/Project.hpp)
+add_executable(ipte main.cpp
+        Fractal/ShaderModel.cpp Fractal/ShaderModel.hpp
+        Fractal/ShaderEditor.cpp Fractal/ShaderEditor.hpp
+        Fractal/HLSLCompiler.cpp
+        Fractal/FileWatcher.cpp Fractal/FileWatcher.hpp
+        Fractal/Fractal.cpp Fractal/Fractal.hpp
+        Fractal/BitmapGenerator.cpp Fractal/BitmapGenerator.hpp
+        Fractal/Project.cpp Fractal/Project.hpp
+        Fractal/Parameters.cpp Fractal/Parameters.hpp
+        Fractal/StructField.cpp Fractal/StructField.hpp Fractal/StructDataEdit.hpp)
 
 # create intermediate libs to improve building time
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/dummy.cpp" "")
@@ -58,4 +64,5 @@ target_link_libraries(ipte
         Boost::regex
         Boost::multi_index
         Boost::lambda
+        Boost::algorithm
 )

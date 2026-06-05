@@ -746,6 +746,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** args)
             vkbase::sys::setWindowSize(w,h);
         }
 
+        //target image count
+        vkbase::imageCount=2;
         vkbase::init("IPTE");//init engine
         vkbase::imgui::initIMGUI();//init imgui
         vkbase::imgui::registerEngineMessagesLog();//copy engine messages to imgui log window

@@ -8,7 +8,7 @@
 
 Project::~Project()
 {
-    for (auto& wid: dependencies| views::values)
+    for (auto& wid: dependencies | std::views::values)
     {
         removeFileFromWatch(wid);
     }
@@ -89,9 +89,8 @@ std::unordered_set<std::filesystem::path> Project::getDependencies(const std::st
     const std::filesystem::path& directory)
 {
     std::unordered_set<std::filesystem::path> read;
-    using namespace std::ranges::views;
     auto dep=readDependencies(src);
-    auto dep_paths_t= dep | views::transform( [&](auto& file_name){return std::filesystem::path(directory/file_name); });
+    auto dep_paths_t = dep | std::views::transform([&](auto& file_name) { return std::filesystem::path(directory / file_name); });
     std::vector<std::filesystem::path> dep_paths(dep_paths_t.begin(),dep_paths_t.end());
     std::vector<std::filesystem::path> next_dep;
 
@@ -106,7 +105,7 @@ std::unordered_set<std::filesystem::path> Project::getDependencies(const std::st
                 if (f)
                 {
                     auto dep_src=std::string(std::istreambuf_iterator<char>(f),std::istreambuf_iterator<char>());
-                    auto new_deps=readDependencies(dep_src);auto new_paths_t=new_deps | views::transform( [&](auto& file_name){return std::filesystem::path(p.parent_path()/file_name); });
+                    auto new_deps=readDependencies(dep_src);auto new_paths_t=new_deps | std::views::transform( [&](auto& file_name){return std::filesystem::path(p.parent_path()/file_name); });
                     next_dep.append_range(new_paths_t);
                 }
 

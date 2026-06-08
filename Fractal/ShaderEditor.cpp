@@ -13,6 +13,15 @@ bool ShaderEditor::draw()
                 errorMarkers[l]=err.message;
             }
         }
+
+        if (currentShader->get_compute_result().diagnostics.contains(shader_name))
+        {
+            for (auto& [l,err] : currentShader->get_compute_result().diagnostics.at(shader_name).errorLines)
+            {
+                errorMarkers[l]=err.message;
+            }
+        }
+
     }
     mainEditor.SetErrorMarkers(errorMarkers);
 

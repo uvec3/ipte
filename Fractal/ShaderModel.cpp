@@ -1502,5 +1502,5 @@ const vkbase::rc::CompilationResult ShaderModel::get_compute_result() const
 
 bool ShaderModel::isCompiling() const
 {
-    return status == Status::COMPILING;
+    return !compilationTaskManager.isFree();
 }

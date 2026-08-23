@@ -10,7 +10,6 @@
 #include <shaderc/shaderc.hpp>
 #include <boost/algorithm/string.hpp>
 
-#include "../cmake-build-debug-visual-studio/_deps/boost-src/libs/algorithm/include/boost/algorithm/string/case_conv.hpp"
 #include "../vkbase/extensions/Assets/assets.h"
 #include "../vkbase/extensions/ShadersRC/slang/ShaderCompilerSlang.hpp"
 

@@ -754,7 +754,12 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** args)
         NFD_Init();//init native file dialog
         initErrorLog();
 
+        vkbase::imgui::setDefaultFontName("JetBrainsMono-Regular");
         vkbase::imgui::setDefaultFontSize(16);
+        ImGuiStyle& style = ImGui::GetStyle();
+        style.Colors[ImGuiCol_WindowBg].w = 0.5f;
+
+        //Don't create .ini file (imgui state is saved with other settings in cache.json file
         ImGui::GetIO().IniFilename = nullptr;
 
         //load fractal data from json
@@ -793,8 +798,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** args)
 
     return EXIT_SUCCESS;
 }
-
-
 
 
 namespace boost {

@@ -3,7 +3,13 @@ project(IPTE)
 set(CMAKE_CXX_STANDARD 23)
 
 #add shaders and templates dirs to assets
-set(ASSETS ${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders  ${CMAKE_CURRENT_SOURCE_DIR}/assets/include ${CMAKE_CURRENT_SOURCE_DIR}/assets/templates ${CMAKE_CURRENT_SOURCE_DIR}/assets/other)
+set(ASSETS
+        ${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders
+        ${CMAKE_CURRENT_SOURCE_DIR}/assets/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/assets/templates
+        ${CMAKE_CURRENT_SOURCE_DIR}/assets/other
+        ${CMAKE_CURRENT_SOURCE_DIR}/assets/Fonts
+)
 
 include(FetchContent)
 FetchContent_Declare(

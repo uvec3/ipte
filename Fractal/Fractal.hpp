@@ -17,8 +17,8 @@ class Fractal
 
     ShaderEditor* shaderEditor;
     TextEditor exportResult;
-    ParallelTaskManager exportParallelTaskManager{1,1,true};
-    AutoParallelTaskManager imageSaveTaskManager{1,1};
+    vkbase::ParallelTaskManager exportParallelTaskManager{1,1,true};
+    vkbase::AutoParallelTaskManager imageSaveTaskManager{1,1};
     bool exportCompiling=false;
 
 

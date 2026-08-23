@@ -145,7 +145,7 @@ private:
     vkbase::rc::CompilationResult compute_shader;
 
 
-    ParallelTaskManager compilationTaskManager{3,1,true};
+    vkbase::ParallelTaskManager compilationTaskManager{3,1,true};
 
 
 public:

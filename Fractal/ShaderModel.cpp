@@ -1487,6 +1487,8 @@ const BitmapGenerator& ShaderModel::getBitmapGenerator()
 
 const std::string& ShaderModel::get_error()
 {
+    if (!compute_shader.success)
+        return compute_shader.diagnostics_text;
     return fragment_shader.diagnostics_text;
 }
 

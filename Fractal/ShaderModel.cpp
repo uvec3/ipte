@@ -7,7 +7,7 @@
 #include <spirv_glsl.hpp>
 #include <spirv_hlsl.hpp>
 #include <variant>
-#include <shaderc/shaderc.hpp>
+// #include <shaderc/shaderc.hpp>
 #include <boost/algorithm/string.hpp>
 
 #include "../vkbase/extensions/Assets/assets.h"

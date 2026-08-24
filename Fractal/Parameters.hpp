@@ -4,7 +4,7 @@
 #include <map>
 #include "../External/json.hpp"
 #include "../vkbase/extensions/ShadersRC/dxc/ShadersDXC.hpp"
-#include <vma/vk_mem_alloc.h>
+#include <vk_mem_alloc.h>
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_handles.hpp>
 #include <unordered_map>
